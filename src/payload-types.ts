@@ -211,7 +211,7 @@ export interface User {
   /**
    * Shapes scattered on the wish list banner.
    */
-  bannerShape?: ('stars' | 'spiral' | 'flower' | 'squiggle' | 'rose' | 'moon' | 'bow' | 'wing') | null;
+  bannerShape?: ('stars' | 'spiral' | 'flower' | 'squiggle' | 'rose' | 'moon' | 'bow' | 'wing' | 'bunny') | null;
   note?: string | null;
   updatedAt: string;
   createdAt: string;

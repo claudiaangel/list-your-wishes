@@ -84,8 +84,20 @@ export function validateAvatarShape(value: unknown): true | string {
 
 // Banner on your own wish list: colour, and the little shapes scattered on it.
 export const DEFAULT_BANNER_COLOR = '#1e2bb8'
-export const BANNER_SHAPES = ['stars', 'spiral', 'flower', 'squiggle', 'rose', 'moon', 'bow', 'wing'] as const
+export const BANNER_SHAPES = [
+  'stars',
+  'spiral',
+  'flower',
+  'squiggle',
+  'rose',
+  'moon',
+  'bow',
+  'wing',
+  'bunny',
+] as const
 export type BannerShape = (typeof BANNER_SHAPES)[number]
+/** Full-colour photos: always shown as they are, never tinted to the text colour. */
+export const PHOTO_SHAPES: readonly BannerShape[] = ['bunny']
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i
 
 export function validateBannerColor(value: unknown): true | string {

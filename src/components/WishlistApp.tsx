@@ -17,6 +17,7 @@ import {
   BANNER_SHAPES,
   CATEGORIES,
   DEFAULT_BANNER_COLOR,
+  PHOTO_SHAPES,
   type BannerShape,
   type Category,
 } from '@/lib/validation'
@@ -245,7 +246,7 @@ function BannerDecor({ shape, light }: { shape: BannerShape; light: boolean }) {
   return (
     <div className="hero-stars hero-shapes" aria-hidden="true">
       {[0, 1, 2, 3, 4].map((i) =>
-        light ? (
+        light && !PHOTO_SHAPES.includes(shape) ? (
           <span key={i} className="hero-shape is-ink" style={{ maskImage: `url(${src})`, WebkitMaskImage: `url(${src})` }} />
         ) : (
           <img key={i} className="hero-shape" src={src} alt="" />
@@ -2037,7 +2038,7 @@ function BannerModal({
                   <span className={`shape-thumb ${look.light ? 'is-ink' : ''}`}>
                     <BannerStar />
                   </span>
-                ) : look.light ? (
+                ) : look.light && !PHOTO_SHAPES.includes(s) ? (
                   <span
                     className="shape-thumb is-ink is-mask"
                     style={{
