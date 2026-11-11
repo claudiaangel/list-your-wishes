@@ -8,6 +8,8 @@ export type LinkPreview = {
   price: number | null
   category: Category | null
   imageUrl: string | null
+  /** Every product photo found, in page order (imageUrl is the first). */
+  imageUrls: string[]
 }
 
 const ENTITIES: Record<string, string> = {
@@ -164,6 +166,31 @@ function largerImage(raw: string) {
   }
 }
 
+/** Flattens JSON-LD images (strings, ImageObjects, arrays) into unique, large, absolute URLs. */
+export function collectImages(values: unknown[], base: URL, limit = 12): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  const add = (value: unknown) => {
+    if (out.length >= limit) return
+    if (Array.isArray(value)) return value.forEach(add)
+    if (value && typeof value === 'object') {
+      const node = value as Json
+      return add(node.contentUrl ?? node.url)
+    }
+    if (typeof value !== 'string' || !value.trim()) return
+    const url = absolute(decode(value), base)
+    if (!url || PLACEHOLDER.test(url)) return
+    const large = largerImage(url)
+    // Same file on a different host/size (e.g. store.com/cdn/shop/… vs cdn.shopify.com/…) counts once
+    const key = new URL(large).pathname.split('/').pop()!.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(large)
+  }
+  values.forEach(add)
+  return out
+}
+
 export function parseProductPage(html: string, pageUrl: URL): LinkPreview {
   const head = html.slice(0, 1_500_000)
   const meta = metaTags(head)
@@ -191,20 +218,21 @@ export function parseProductPage(html: string, pageUrl: URL): LinkPreview {
     parsePrice(meta.get('product:price:amount') ?? meta.get('og:price:amount') ?? meta.get('price') ?? null) ??
     null
 
-  const imageUrl =
+  const imageUrls = collectImages(
     [
-      group ? str(group.image) : '',
-      product ? str(product.image) : '',
-      variant ? str(variant.image) : '',
+      group?.image,
+      product?.image,
+      variant?.image,
+      ...(Array.isArray(product?.hasVariant) ? (product.hasVariant as Json[]).map((v) => v?.image) : []),
       meta.get('og:image:secure_url'),
       meta.get('og:image'),
       meta.get('og:image:url'),
       meta.get('twitter:image'),
       meta.get('twitter:image:src'),
-    ]
-      .map((candidate) => absolute(candidate ?? '', pageUrl))
-      .filter((candidate): candidate is string => Boolean(candidate) && !PLACEHOLDER.test(candidate!))
-      .map(largerImage)[0] ?? null
+    ],
+    pageUrl,
+  )
+  const imageUrl = imageUrls[0] ?? null
 
   const category = guessCategory(
     product ? str(product.category) : '',
@@ -215,5 +243,5 @@ export function parseProductPage(html: string, pageUrl: URL): LinkPreview {
     product ? str(product.description).slice(0, 300) : meta.get('og:description') ?? '',
   )
 
-  return { url: pageUrl.toString(), name, store, price, category, imageUrl }
+  return { url: pageUrl.toString(), name, store, price, category, imageUrl, imageUrls }
 }

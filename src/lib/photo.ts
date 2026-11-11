@@ -6,23 +6,16 @@ import { HttpError } from './api'
 import { removeBackground } from './background-removal'
 import { toPhoto } from './serialize'
 
+type Mask = { seen: Uint8Array; removedShare: number; dist: (i: number) => number }
+
 /**
- * Free fallback cutout for studio product shots: if the photo's border is one
- * plain light colour (white/grey/cream, as on most store pages), flood-fill that
- * colour inwards from the edges and make it transparent, with soft edges.
- * Returns null when the background isn't plain enough to do this safely.
+ * Finds a plain light background: the photo's border must be (mostly) one light
+ * colour, which is then flood-filled inwards from the edges. Null if the
+ * background isn't plain enough, or if almost nothing / almost everything is background.
  */
-export async function cutOutPlainBackground(input: Buffer): Promise<Buffer | null> {
-  const { data, info } = await sharp(input)
-    .rotate()
-    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  const { width: w, height: h } = info
+function plainBackgroundMask(data: Buffer, w: number, h: number): Mask | null {
   const px = (x: number, y: number) => (y * w + x) * 4
 
-  // 1. Sample the border; it must be mostly one light colour.
   const border: number[] = []
   for (let x = 0; x < w; x += 2) border.push(px(x, 0), px(x, h - 1))
   for (let y = 0; y < h; y += 2) border.push(px(0, y), px(w - 1, y))
@@ -34,7 +27,6 @@ export async function cutOutPlainBackground(input: Buffer): Promise<Buffer | nul
   const matching = border.filter((i) => dist(i) <= 18).length / border.length
   if (matching < 0.9) return null
 
-  // 2. Flood fill from every edge pixel through background-coloured pixels.
   const TOLERANCE = 26
   const seen = new Uint8Array(w * h)
   const stack: number[] = []
@@ -55,11 +47,42 @@ export async function cutOutPlainBackground(input: Buffer): Promise<Buffer | nul
     if (y > 0) push(x, y - 1)
     if (y < h - 1) push(x, y + 1)
   }
-  const removed = seen.reduce((sum, v) => sum + v, 0) / (w * h)
-  // Nothing removed, or almost everything (the product itself is background-coloured): give up.
-  if (removed < 0.03 || removed > 0.97) return null
+  const removedShare = seen.reduce((sum, v) => sum + v, 0) / (w * h)
+  if (removedShare < 0.03 || removedShare > 0.97) return null
+  return { seen, removedShare, dist }
+}
 
-  // 3. Transparent background, soft 1px edge on pixels touching it.
+/**
+ * How good a photo is for a cut-out: 'cutout' (already transparent), 'plain'
+ * (plain light background with the product clearly in it), or 'busy'.
+ */
+export async function backgroundKind(input: Buffer): Promise<'cutout' | 'plain' | 'busy'> {
+  const image = sharp(input).rotate().resize({ width: 220, height: 220, fit: 'inside' }).ensureAlpha()
+  const { data, info } = await image.raw().toBuffer({ resolveWithObject: true })
+  let clear = 0
+  for (let i = 3; i < data.length; i += 4) if (data[i] < 16) clear++
+  if (clear / (info.width * info.height) > 0.1) return 'cutout'
+  const mask = plainBackgroundMask(data, info.width, info.height)
+  // Product should take up a fair part of the frame (not a tiny thing, not a fabric close-up).
+  return mask && mask.removedShare >= 0.2 && mask.removedShare <= 0.92 ? 'plain' : 'busy'
+}
+
+/**
+ * Free fallback cutout for studio product shots: makes a plain light
+ * background transparent, with soft edges. Null when the background isn't plain.
+ */
+export async function cutOutPlainBackground(input: Buffer): Promise<Buffer | null> {
+  const { data, info } = await sharp(input)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const { width: w, height: h } = info
+  const mask = plainBackgroundMask(data, w, h)
+  if (!mask) return null
+  const { seen, dist } = mask
+
   const alpha = Buffer.alloc(w * h, 255)
   for (let p = 0; p < w * h; p++) if (seen[p]) alpha[p] = 0
   for (let y = 1; y < h - 1; y++) {

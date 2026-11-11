@@ -1443,7 +1443,14 @@ function WishFormModal({
     setLookup({ state: 'reading', note: 'reading the page…' })
     try {
       const { preview } = await api<{
-        preview: { name: string; store: string; price: number | null; category: Category | null; imageUrl: string | null }
+        preview: {
+          name: string
+          store: string
+          price: number | null
+          category: Category | null
+          imageUrl: string | null
+          imageUrls: string[]
+        }
       }>('/api/app/link-preview', { method: 'POST', json: { url: link } })
       if (lookedUp.current !== link) return
       if (preview.name) setName((current) => current || preview.name)
@@ -1456,7 +1463,7 @@ function WishFormModal({
         try {
           const result = await api<{ photo: Photo }>('/api/app/photos/from-url', {
             method: 'POST',
-            json: { url: preview.imageUrl, alt: preview.name || 'Wish photo' },
+            json: { urls: preview.imageUrls, alt: preview.name || 'Wish photo' },
           })
           if (lookedUp.current === link) setPhoto((current) => current ?? result.photo)
         } catch {
