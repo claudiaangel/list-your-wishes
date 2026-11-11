@@ -281,6 +281,8 @@ export interface Media {
    * True when the photo has a transparent background.
    */
   cutout?: boolean | null;
+  prefix?: string | null;
+  _objectKey?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -525,6 +527,8 @@ export interface MediaSelect<T extends boolean = true> {
   alt?: T;
   owner?: T;
   cutout?: T;
+  prefix?: T;
+  _objectKey?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;

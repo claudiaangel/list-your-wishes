@@ -44,6 +44,9 @@ export default buildConfig({
       enabled: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
       token: process.env.BLOB_READ_WRITE_TOKEN,
       collections: { media: { disablePayloadAccessControl: true } },
+      // Keep the media table identical with and without Blob (dev vs production),
+      // so migrations generated locally match what production needs.
+      alwaysInsertFields: true,
     }),
   ],
 })
