@@ -532,7 +532,7 @@ export default function App({
       <h2>Sign in to begin</h2>
       <p>{text}</p>
       <button className="ink-button" onClick={() => setAccountOpen(true)}>
-        Sign in or create an account
+        Sign in
       </button>
     </div>
   )
@@ -595,7 +595,7 @@ export default function App({
               )}
             </section>
             {!sessionUser ? (
-              signInPrompt('Make an account to start your list, save up, and see your friends’ wishes.')
+              signInPrompt('Start your wish list.')
             ) : (
               <>
                 <section className="controls">
@@ -659,7 +659,7 @@ export default function App({
               )}
             </div>
             <p className="intro">Peek at what the people you love have been dreaming about.</p>
-            {!sessionUser && signInPrompt('Sign in to find friends and peek at their lists.')}
+            {!sessionUser && signInPrompt('See your friends’ lists.')}
             {sessionUser && friendSearchOpen && (
               <section className="friend-search" aria-label="Find more users">
                 <label htmlFor="friend-search">Find someone</label>
@@ -788,7 +788,7 @@ export default function App({
               <Star />
             </div>
             {!sessionUser ? (
-              signInPrompt('Sign in to start saving for the things you love.')
+              signInPrompt('Save up for your wishes.')
             ) : (
               <div className="savings-layout">
                 <div className="jar-wrap">

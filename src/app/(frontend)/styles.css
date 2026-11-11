@@ -1792,3 +1792,13 @@ footer p {
   border-radius: 0;
   padding: 0;
 }
+
+/* Sign-in prompt: give the heading, line and button room to breathe */
+.empty h2 {
+  margin: 18px 0 14px;
+  line-height: 1.15;
+}
+.empty p {
+  margin: 0 0 30px;
+  line-height: 1.4;
+}
