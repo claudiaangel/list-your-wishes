@@ -1808,3 +1808,15 @@ footer p {
   text-align: center;
   margin: 36px 0 80px;
 }
+
+/* Status under the Link field while a pasted link is read */
+.link-lookup {
+  display: block;
+  margin-top: 6px;
+  font: italic 13px 'Newsreader';
+  color: #1e2bb8;
+  opacity: 0.75;
+}
+.link-lookup.is-failed {
+  opacity: 1;
+}

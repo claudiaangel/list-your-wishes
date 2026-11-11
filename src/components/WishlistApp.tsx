@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   isBirthdayToday,
   normalizeAvatar,
@@ -1247,6 +1247,48 @@ function WishFormModal({
     else setError(message(e))
   }
 
+  // Paste a product link → fill in the empty fields and bring in a cut-out photo.
+  const [lookup, setLookup] = useState<{ state: 'idle' | 'reading' | 'done' | 'failed'; note: string }>({
+    state: 'idle',
+    note: '',
+  })
+  const lookedUp = useRef(initial?.url ?? '')
+  const readLink = async (value: string) => {
+    const link = value.trim()
+    if (!/^https?:\/\/\S+\.\S+/i.test(link) || link === lookedUp.current) return
+    lookedUp.current = link
+    setError('')
+    setLookup({ state: 'reading', note: 'reading the page…' })
+    try {
+      const { preview } = await api<{
+        preview: { name: string; store: string; price: number | null; category: Category | null; imageUrl: string | null }
+      }>('/api/app/link-preview', { method: 'POST', json: { url: link } })
+      if (lookedUp.current !== link) return
+      if (preview.name) setName((current) => current || preview.name)
+      if (preview.store) setStore((current) => current || preview.store)
+      if (preview.price !== null) setPrice((current) => current || String(preview.price))
+      if (preview.category) setCategory((current) => (current === 'Other' ? preview.category! : current))
+      setLookup({ state: 'done', note: 'filled in from the link' })
+      if (preview.imageUrl && !photo) {
+        setPhotoStatus('uploading')
+        try {
+          const result = await api<{ photo: Photo }>('/api/app/photos/from-url', {
+            method: 'POST',
+            json: { url: preview.imageUrl, alt: preview.name || 'Wish photo' },
+          })
+          if (lookedUp.current === link) setPhoto((current) => current ?? result.photo)
+        } catch {
+          setLookup({ state: 'done', note: 'filled in from the link (add the photo yourself)' })
+        } finally {
+          setPhotoStatus('idle')
+        }
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) return onAuthError()
+      if (lookedUp.current === link) setLookup({ state: 'failed', note: message(e) })
+    }
+  }
+
   const choosePhoto = async (file: File | undefined) => {
     if (!file) return
     setError('')
@@ -1306,9 +1348,19 @@ function WishFormModal({
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
+            onPaste={(e) => {
+              const pasted = e.clipboardData.getData('text')
+              if (pasted) setTimeout(() => readLink(pasted), 0)
+            }}
+            onBlur={(e) => readLink(e.target.value)}
             placeholder="https://..."
             inputMode="url"
           />
+          {lookup.state !== 'idle' && (
+            <small className={`link-lookup is-${lookup.state}`} aria-live="polite">
+              {lookup.note}
+            </small>
+          )}
         </label>
         <label className={`add-photo ${photoStatus === 'uploading' ? 'busy' : ''}`}>
           <input

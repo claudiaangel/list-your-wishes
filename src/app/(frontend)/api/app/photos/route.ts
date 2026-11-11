@@ -1,7 +1,5 @@
-import sharp from 'sharp'
 import { HttpError, route, text } from '@/lib/api'
-import { removeBackground } from '@/lib/background-removal'
-import { toPhoto } from '@/lib/serialize'
+import { storePhoto } from '@/lib/photo'
 
 export const maxDuration = 30
 
@@ -9,7 +7,7 @@ export const maxDuration = 30
 const MAX_BYTES = 4 * 1024 * 1024
 const TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
-/** Upload a product photo (background removed when configured). Returns the stored photo. */
+/** Upload a product photo (background removed when possible). Returns the stored photo. */
 export const POST = route(async ({ request, payload, user }) => {
   let form: FormData
   try {
@@ -22,30 +20,12 @@ export const POST = route(async ({ request, payload, user }) => {
   if (file.size > MAX_BYTES) throw new HttpError(413, 'That photo is too large (4 MB max).')
   if (!TYPES.has(file.type)) throw new HttpError(415, 'Use a PNG, JPEG or WebP photo.')
 
-  let data: Buffer = Buffer.from(await file.arrayBuffer())
-  let mimetype = file.type
-  let isOpaque: boolean
-  try {
-    // Also confirms the bytes really are an image, whatever the browser claimed.
-    isOpaque = (await sharp(data).stats()).isOpaque
-  } catch {
-    throw new HttpError(415, 'That file doesn’t look like a photo.')
-  }
-
-  // Photos that are already cut out are kept as they are.
-  if (isOpaque) {
-    const result = await removeBackground(data, mimetype)
-    data = result.data
-    mimetype = result.mimetype
-  }
-
-  const alt = text(form.get('alt'), 200) || 'Wish photo'
-  const media = await payload.create({
-    collection: 'media',
-    data: { alt },
-    file: { data, mimetype, name: `wish-${Date.now()}.${mimetype.split('/')[1]}`, size: data.length },
+  const photo = await storePhoto({
+    payload,
     user,
-    overrideAccess: false,
+    data: Buffer.from(await file.arrayBuffer()),
+    mimetype: file.type,
+    alt: text(form.get('alt'), 200) || 'Wish photo',
   })
-  return Response.json({ photo: toPhoto(media) }, { status: 201 })
+  return Response.json({ photo }, { status: 201 })
 })

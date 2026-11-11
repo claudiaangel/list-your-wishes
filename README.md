@@ -59,13 +59,23 @@ ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a long passphrase' pnpm create-admin
 Put transparent PNG/SVG files in `public/avatars/<NN-layer>/<option>.png`. See
 `public/avatars/README.md`. Until drawings are added, the built-in ink avatar is used.
 
+### Paste a link
+
+Pasting a product link in **Add a wish** reads the page (its product data for search
+engines and social sharing) and fills in the empty fields: name, store, price, category
+and photo. No API key is needed. Some big stores block automated visitors or load prices
+with JavaScript; then only part of it, or nothing, is filled in and the rest is typed by
+hand. The server only fetches public http(s) addresses (no private networks), re-checks
+every redirect, and caps size and time.
+
 ### Photos and background removal
 
 The browser shrinks photos before upload. The server stores them as WebP plus a
 640px "card" size. If `REMOVE_BG_API_KEY` is set, opaque photos are sent to
 [remove.bg](https://www.remove.bg/api) and come back as transparent cutouts. Photos that
-are already transparent are kept as they are, and if the service fails the original
-photo is used. remove.bg is a paid API with a small free allowance; Photoroom's API
+are already transparent are kept as they are. Without a key (or if the service fails),
+photos on a plain light background, as on most store pages, are cut out by the app
+itself; other photos are kept as they are. remove.bg is a paid API with a small free allowance; Photoroom's API
 is a similar alternative.
 
 ## Deploy (Vercel + Neon Postgres + Vercel Blob)
