@@ -1802,3 +1802,9 @@ footer p {
   margin: 0 0 30px;
   line-height: 1.4;
 }
+
+/* Friends page when signed out: just the Sign in button */
+.signin-only {
+  text-align: center;
+  margin: 36px 0 80px;
+}

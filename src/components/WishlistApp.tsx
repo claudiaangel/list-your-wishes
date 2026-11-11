@@ -659,7 +659,13 @@ export default function App({
               )}
             </div>
             <p className="intro">Peek at what the people you love have been dreaming about.</p>
-            {!sessionUser && signInPrompt('See your friends’ lists.')}
+            {!sessionUser && (
+              <div className="signin-only">
+                <button className="ink-button" onClick={() => setAccountOpen(true)}>
+                  Sign in
+                </button>
+              </div>
+            )}
             {sessionUser && friendSearchOpen && (
               <section className="friend-search" aria-label="Find more users">
                 <label htmlFor="friend-search">Find someone</label>
@@ -788,7 +794,11 @@ export default function App({
               <Star />
             </div>
             {!sessionUser ? (
-              signInPrompt('Save up for your wishes.')
+              <div className="signin-only">
+                <button className="ink-button" onClick={() => setAccountOpen(true)}>
+                  Sign in
+                </button>
+              </div>
             ) : (
               <div className="savings-layout">
                 <div className="jar-wrap">
