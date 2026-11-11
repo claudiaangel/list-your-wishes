@@ -2087,3 +2087,43 @@ footer p {
 .banner-shape-picker button:has(.is-ink) small {
   color: #1e2bb8;
 }
+
+/* Chosen banner text colour (overrides the automatic paper/ink) */
+.hero.has-ink,
+.hero.has-ink h1,
+.hero.has-ink .intro,
+.hero.has-ink .hero-stars svg,
+.banner-preview.has-ink,
+.banner-preview.has-ink .hero-stars svg,
+.banner-shape-picker.has-ink .shape-thumb,
+.banner-shape-picker.has-ink small {
+  color: var(--banner-ink);
+}
+.hero.has-ink .hero-shape.is-ink,
+.banner-preview.has-ink .hero-shape.is-ink,
+.banner-shape-picker.has-ink .shape-thumb.is-mask {
+  background: var(--banner-ink);
+}
+.hero.has-ink .editable-note .intro:hover,
+.hero.has-ink .editable-note .intro:focus {
+  border-bottom-color: color-mix(in srgb, var(--banner-ink) 55%, transparent);
+  background: color-mix(in srgb, var(--banner-ink) 5%, transparent);
+}
+.banner-swatch.is-auto {
+  background: #fdfbf7;
+  color: #1e2bb8;
+  font: italic 11px 'Newsreader';
+}
+@media (max-width: 700px) {
+  .banner-preview {
+    padding: 40px 30px 34px;
+  }
+  .banner-preview > strong {
+    font-size: 28px;
+  }
+}
+@media (max-width: 700px) {
+  .banner-preview .hero-shapes .hero-shape {
+    scale: 0.36;
+  }
+}

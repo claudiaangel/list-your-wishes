@@ -205,6 +205,10 @@ export interface User {
    */
   bannerColor?: string | null;
   /**
+   * Banner text colour, e.g. #fdfbf7. Empty = automatic.
+   */
+  bannerTextColor?: string | null;
+  /**
    * Shapes scattered on the wish list banner.
    */
   bannerShape?: ('stars' | 'spiral' | 'flower' | 'squiggle' | 'rose' | 'moon' | 'bow' | 'wing') | null;
@@ -474,6 +478,7 @@ export interface UsersSelect<T extends boolean = true> {
   avatar?: T;
   intro?: T;
   bannerColor?: T;
+  bannerTextColor?: T;
   bannerShape?: T;
   note?: T;
   updatedAt?: T;

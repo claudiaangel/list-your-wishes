@@ -145,6 +145,12 @@ export const Users: CollectionConfig = {
       admin: { description: 'Wish list banner colour, e.g. #1e2bb8. Empty = cobalt.' },
     },
     {
+      name: 'bannerTextColor',
+      type: 'text',
+      validate: validateBannerColor,
+      admin: { description: 'Banner text colour, e.g. #fdfbf7. Empty = automatic.' },
+    },
+    {
       name: 'bannerShape',
       type: 'select',
       options: BANNER_SHAPES.map((value) => ({ label: value, value })),

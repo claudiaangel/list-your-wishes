@@ -1,6 +1,7 @@
 import * as migration_20261111_082143_initial from './20261111_082143_initial';
 import * as migration_20261111_185544_media_storage_fields from './20261111_185544_media_storage_fields';
 import * as migration_20261111_224004_banner_settings from './20261111_224004_banner_settings';
+import * as migration_20261111_225024_banner_text_color from './20261111_225024_banner_text_color';
 
 export const migrations = [
   {
@@ -16,6 +17,11 @@ export const migrations = [
   {
     up: migration_20261111_224004_banner_settings.up,
     down: migration_20261111_224004_banner_settings.down,
-    name: '20261111_224004_banner_settings'
+    name: '20261111_224004_banner_settings',
+  },
+  {
+    up: migration_20261111_225024_banner_text_color.up,
+    down: migration_20261111_225024_banner_text_color.down,
+    name: '20261111_225024_banner_text_color'
   },
 ];

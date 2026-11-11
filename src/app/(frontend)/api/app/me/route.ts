@@ -15,6 +15,7 @@ export const PATCH = route(async ({ request, payload, user }) => {
     note?: string
     avatar?: Record<string, string>
     bannerColor?: string
+    bannerTextColor?: string
     bannerShape?: BannerShape
   } = {}
 
@@ -36,6 +37,12 @@ export const PATCH = route(async ({ request, payload, user }) => {
     const color = text(body.bannerColor, 7).toLowerCase()
     if (!HEX_COLOR.test(color)) throw new HttpError(400, 'Pick a colour.')
     data.bannerColor = color
+  }
+  if ('bannerTextColor' in body) {
+    // Empty = automatic (paper-white on dark banners, blue ink on light ones)
+    const color = text(body.bannerTextColor, 7).toLowerCase()
+    if (color && !HEX_COLOR.test(color)) throw new HttpError(400, 'Pick a text colour.')
+    data.bannerTextColor = color
   }
   if ('bannerShape' in body) {
     if (!BANNER_SHAPES.includes(body.bannerShape as BannerShape)) {

@@ -149,13 +149,83 @@ function isLightColor(hex: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4
 }
 
-function bannerStyle(color: string) {
+/** textColor '' = automatic: paper-white on dark banners, blue ink on light ones. */
+function bannerStyle(color: string, textColor = '') {
   const light = isLightColor(color)
+  const style = { background: color } as React.CSSProperties & Record<string, string>
+  if (textColor) style['--banner-ink'] = textColor
   return {
-    className: `${color.toLowerCase() === DEFAULT_BANNER_COLOR ? '' : 'is-custom'} ${light ? 'is-light' : ''}`,
-    style: { background: color } as React.CSSProperties,
+    className: [
+      color.toLowerCase() === DEFAULT_BANNER_COLOR ? '' : 'is-custom',
+      light ? 'is-light' : '',
+      textColor ? 'has-ink' : '',
+    ].join(' '),
+    style,
     light,
   }
+}
+
+const TEXT_COLORS: { value: string; label: string }[] = [
+  { value: '#fdfbf7', label: 'paper' },
+  { value: '#1e2bb8', label: 'cobalt' },
+  { value: '#1b1b1f', label: 'ink' },
+  { value: '#b8232f', label: 'cherry' },
+  { value: '#e98aa0', label: 'pink' },
+  { value: '#f3dd8a', label: 'butter' },
+  { value: '#2f5d46', label: 'forest' },
+  { value: '#5b2a6e', label: 'plum' },
+]
+
+function SwatchRow({
+  colors,
+  value,
+  onChange,
+  auto,
+}: {
+  colors: { value: string; label: string }[]
+  value: string
+  onChange: (value: string) => void
+  /** Show an "auto" choice, meaning value '' */
+  auto?: boolean
+}) {
+  const v = value.toLowerCase()
+  const isPreset = v === '' ? Boolean(auto) : colors.some((c) => c.value === v)
+  return (
+    <div className="banner-swatches">
+      {auto && (
+        <button
+          type="button"
+          className={`banner-swatch is-auto ${v === '' ? 'selected' : ''}`}
+          onClick={() => onChange('')}
+          aria-label="automatic"
+          aria-pressed={v === ''}
+          title="automatic"
+        >
+          auto
+        </button>
+      )}
+      {colors.map((c) => (
+        <button
+          type="button"
+          key={c.value}
+          className={`banner-swatch ${v === c.value ? 'selected' : ''}`}
+          style={{ background: c.value }}
+          onClick={() => onChange(c.value)}
+          aria-label={c.label}
+          aria-pressed={v === c.value}
+          title={c.label}
+        />
+      ))}
+      <label className={`banner-swatch is-custom-color ${isPreset ? '' : 'selected'}`} title="any colour">
+        <input
+          type="color"
+          value={v || '#fdfbf7'}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label="Pick any colour"
+        />
+      </label>
+    </div>
+  )
 }
 
 /** The five little things scattered on the banner: the original stars, or one of the drawn shapes. */
@@ -351,7 +421,10 @@ export default function App({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [formWish, setFormWish] = useState<MyWish | 'new' | null>(null)
   const [bannerOpen, setBannerOpen] = useState(false)
-  const heroLook = bannerStyle(sessionUser?.bannerColor ?? DEFAULT_BANNER_COLOR)
+  const heroLook = bannerStyle(
+    sessionUser?.bannerColor ?? DEFAULT_BANNER_COLOR,
+    sessionUser?.bannerTextColor ?? '',
+  )
 
   const [friends, setFriends] = useState<PublicProfile[]>([])
   const [friendsStatus, setFriendsStatus] = useState<Status>('idle')
@@ -1894,11 +1967,12 @@ function BannerModal({
   onAuthError: () => void
 }) {
   const [color, setColor] = useState(user.bannerColor)
+  const [textColor, setTextColor] = useState(user.bannerTextColor)
   const [shape, setShape] = useState<BannerShape>(user.bannerShape)
   const [intro, setIntro] = useState(user.intro || DEFAULT_INTRO)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const look = bannerStyle(color)
+  const look = bannerStyle(color, textColor)
 
   const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1908,7 +1982,7 @@ function BannerModal({
       const text = intro.trim()
       const { user: updated } = await api<{ user: SessionUser }>('/api/app/me', {
         method: 'PATCH',
-        json: { bannerColor: color, bannerShape: shape, intro: text === DEFAULT_INTRO ? '' : text },
+        json: { bannerColor: color, bannerTextColor: textColor, bannerShape: shape, intro: text === DEFAULT_INTRO ? '' : text },
       })
       onSaved(updated)
     } catch (e) {
@@ -1935,39 +2009,21 @@ function BannerModal({
         </div>
 
         <fieldset className="banner-field">
-          <legend>Colour</legend>
-          <div className="banner-swatches">
-            {BANNER_COLORS.map((c) => (
-              <button
-                type="button"
-                key={c.value}
-                className={`banner-swatch ${color.toLowerCase() === c.value ? 'selected' : ''}`}
-                style={{ background: c.value }}
-                onClick={() => setColor(c.value)}
-                aria-label={c.label}
-                aria-pressed={color.toLowerCase() === c.value}
-                title={c.label}
-              />
-            ))}
-            <label
-              className={`banner-swatch is-custom-color ${
-                BANNER_COLORS.some((c) => c.value === color.toLowerCase()) ? '' : 'selected'
-              }`}
-              title="any colour"
-            >
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                aria-label="Pick any colour"
-              />
-            </label>
-          </div>
+          <legend>Banner colour</legend>
+          <SwatchRow colors={BANNER_COLORS} value={color} onChange={setColor} />
+        </fieldset>
+
+        <fieldset className="banner-field">
+          <legend>Text colour</legend>
+          <SwatchRow colors={TEXT_COLORS} value={textColor} onChange={setTextColor} auto />
         </fieldset>
 
         <fieldset className="banner-field">
           <legend>Little shapes</legend>
-          <div className="banner-shape-picker">
+          <div
+            className={`banner-shape-picker ${textColor ? 'has-ink' : ''}`}
+            style={textColor ? ({ '--banner-ink': textColor } as React.CSSProperties) : undefined}
+          >
             {BANNER_SHAPES.map((s) => (
               <button
                 type="button"

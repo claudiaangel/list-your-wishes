@@ -45,6 +45,7 @@ export function toSessionUser(user: User): SessionUser {
     intro: user.intro ?? '',
     note: user.note ?? '',
     bannerColor: user.bannerColor || DEFAULT_BANNER_COLOR,
+    bannerTextColor: user.bannerTextColor || '',
     bannerShape: (user.bannerShape as BannerShape | null | undefined) || 'stars',
   }
 }

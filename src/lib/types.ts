@@ -64,6 +64,8 @@ export type SessionUser = {
   intro: string
   note: string
   bannerColor: string
+  /** '' = automatic */
+  bannerTextColor: string
   bannerShape: BannerShape
 }
 
