@@ -1820,3 +1820,270 @@ footer p {
 .link-lookup.is-failed {
   opacity: 1;
 }
+
+/* ---------- Customisable banner: pen button, colours, shapes ---------- */
+.hero.is-custom {
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.12);
+}
+.hero.is-light,
+.hero.is-light h1,
+.hero.is-light .intro {
+  color: #1e2bb8;
+}
+.hero.is-light .hero-stars svg {
+  color: #1e2bb8;
+}
+.hero.is-light .editable-note .intro:hover,
+.hero.is-light .editable-note .intro:focus {
+  border-bottom-color: rgba(30, 43, 184, 0.55);
+  background: rgba(30, 43, 184, 0.04);
+}
+.banner-pen {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 3;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.85;
+  transition:
+    transform 0.2s,
+    opacity 0.2s,
+    background-color 0.2s;
+}
+.banner-pen:hover,
+.banner-pen:focus-visible {
+  opacity: 1;
+  transform: rotate(-8deg) scale(1.05);
+  background: rgba(253, 251, 247, 0.12);
+}
+.hero.is-light .banner-pen:hover {
+  background: rgba(30, 43, 184, 0.08);
+}
+.banner-pen svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Drawn shapes instead of stars (same five spots, a little bigger) */
+.hero-shapes .hero-shape {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  opacity: 0.9;
+}
+.hero-shape.is-ink {
+  background: #1e2bb8;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+.hero-shapes .hero-shape:nth-child(1) {
+  left: 7%;
+  top: 15%;
+  transform: rotate(-13deg);
+}
+.hero-shapes .hero-shape:nth-child(2) {
+  left: 21%;
+  bottom: 10%;
+  width: 62px;
+  height: 62px;
+  transform: rotate(17deg);
+}
+.hero-shapes .hero-shape:nth-child(3) {
+  left: 39%;
+  top: 6%;
+  width: 52px;
+  height: 52px;
+}
+.hero-shapes .hero-shape:nth-child(4) {
+  right: 22%;
+  bottom: 9%;
+  width: 76px;
+  height: 76px;
+  transform: rotate(12deg);
+}
+.hero-shapes .hero-shape:nth-child(5) {
+  right: 8%;
+  top: 22%;
+  width: 66px;
+  height: 66px;
+  transform: rotate(-8deg);
+}
+@media (max-width: 700px) {
+  .banner-pen {
+    top: 14px;
+    right: 14px;
+    width: 42px;
+    height: 42px;
+  }
+  .hero-shapes .hero-shape {
+    scale: 0.62;
+  }
+}
+
+/* Banner settings window */
+.banner-modal .modal-heading {
+  margin-bottom: 4px;
+}
+.banner-preview {
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+  padding: 44px 56px 40px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  color: #fdfbf7;
+  background: #1e2bb8;
+  transition: background-color 0.25s;
+}
+.banner-preview.is-light {
+  color: #1e2bb8;
+}
+.banner-preview.is-light .hero-stars svg {
+  color: #1e2bb8;
+}
+.banner-preview > strong {
+  position: relative;
+  z-index: 2;
+  font: 34px/1.1 'Petit Formal Script', cursive;
+}
+.banner-preview > span {
+  position: relative;
+  z-index: 2;
+  font: 14px/1.4 'Newsreader';
+  opacity: 0.9;
+}
+.banner-preview .hero-stars svg {
+  scale: 0.6;
+}
+.banner-preview .hero-stars > :nth-child(3) {
+  display: none;
+}
+.banner-preview .hero-stars > :nth-child(1) {
+  left: 4%;
+}
+.banner-preview .hero-stars > :nth-child(5) {
+  right: 4%;
+}
+.banner-preview .hero-shapes .hero-shape {
+  scale: 0.5;
+}
+.banner-field {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.banner-field > legend {
+  font: italic 15px 'Newsreader';
+  margin-bottom: 10px;
+}
+.banner-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.banner-swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(30, 43, 184, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.banner-swatch:hover {
+  transform: scale(1.08);
+}
+.banner-swatch.selected {
+  outline: 1.5px solid #1e2bb8;
+  outline-offset: 3px;
+}
+.add-modal label.banner-swatch {
+  display: block;
+}
+.banner-swatch.is-custom-color {
+  overflow: hidden;
+  background: conic-gradient(#b8232f, #f3dd8a, #9fb59a, #a9c8e8, #1e2bb8, #c9b6e4, #b8232f);
+}
+.add-modal .banner-swatch.is-custom-color input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.banner-shape-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 10px;
+}
+.banner-shape-picker button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 6px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition:
+    transform 0.15s,
+    background-color 0.25s;
+}
+.banner-shape-picker button:hover {
+  transform: translateY(-2px);
+}
+.banner-shape-picker button.selected {
+  outline: 1.5px solid #1e2bb8;
+  outline-offset: 3px;
+}
+.banner-shape-picker small {
+  font: italic 12px 'Newsreader';
+  color: #fdfbf7;
+  opacity: 0.85;
+}
+.banner-shape-picker .shape-thumb {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  color: #fdfbf7;
+}
+.banner-shape-picker .shape-thumb svg {
+  width: 100%;
+  height: 100%;
+}
+.banner-shape-picker .shape-thumb.is-ink {
+  color: #1e2bb8;
+}
+.banner-shape-picker .shape-thumb.is-mask {
+  background: #1e2bb8;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+.banner-shape-picker button:has(.is-ink) small {
+  color: #1e2bb8;
+}

@@ -6,8 +6,10 @@ import {
 } from 'payload'
 import { isAdmin, ownedBy } from '../access'
 import {
+  BANNER_SHAPES,
   normalizeHandle,
   validateAvatarShape,
+  validateBannerColor,
   validateBirthday,
   validateHandle,
   validateName,
@@ -136,6 +138,19 @@ export const Users: CollectionConfig = {
       admin: { description: 'Chosen avatar part for each layer, e.g. {"hair": "waves"}.' },
     },
     { name: 'intro', type: 'text', maxLength: 280 },
+    {
+      name: 'bannerColor',
+      type: 'text',
+      validate: validateBannerColor,
+      admin: { description: 'Wish list banner colour, e.g. #1e2bb8. Empty = cobalt.' },
+    },
+    {
+      name: 'bannerShape',
+      type: 'select',
+      options: BANNER_SHAPES.map((value) => ({ label: value, value })),
+      defaultValue: 'stars',
+      admin: { description: 'Shapes scattered on the wish list banner.' },
+    },
     { name: 'note', type: 'text', maxLength: 80, defaultValue: 'new wishes incoming' },
   ],
   timestamps: true,

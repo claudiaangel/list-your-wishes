@@ -2,14 +2,21 @@ import { HttpError, readJson, route, text } from '@/lib/api'
 import { getAvatarManifest } from '@/lib/avatars'
 import { toSessionUser } from '@/lib/session'
 import { isValidAvatarChoice } from '@/lib/types'
-import { validateName } from '@/lib/validation'
+import { BANNER_SHAPES, HEX_COLOR, validateName, type BannerShape } from '@/lib/validation'
 
 export const GET = route(async ({ user }) => Response.json({ user: toSessionUser(user) }))
 
-/** Update your own profile: name, list intro, short note, avatar. */
+/** Update your own profile: name, list intro, short note, avatar, banner. */
 export const PATCH = route(async ({ request, payload, user }) => {
   const body = await readJson(request)
-  const data: { name?: string; intro?: string; note?: string; avatar?: Record<string, string> } = {}
+  const data: {
+    name?: string
+    intro?: string
+    note?: string
+    avatar?: Record<string, string>
+    bannerColor?: string
+    bannerShape?: BannerShape
+  } = {}
 
   if ('name' in body) {
     const name = text(body.name, 80)
@@ -24,6 +31,17 @@ export const PATCH = route(async ({ request, payload, user }) => {
       throw new HttpError(400, 'Pick parts from the list.')
     }
     data.avatar = body.avatar as Record<string, string>
+  }
+  if ('bannerColor' in body) {
+    const color = text(body.bannerColor, 7).toLowerCase()
+    if (!HEX_COLOR.test(color)) throw new HttpError(400, 'Pick a colour.')
+    data.bannerColor = color
+  }
+  if ('bannerShape' in body) {
+    if (!BANNER_SHAPES.includes(body.bannerShape as BannerShape)) {
+      throw new HttpError(400, 'Pick a shape from the list.')
+    }
+    data.bannerShape = body.bannerShape as BannerShape
   }
   if (!Object.keys(data).length) throw new HttpError(400, 'Nothing to update.')
 

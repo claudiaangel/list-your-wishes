@@ -200,6 +200,14 @@ export interface User {
     | boolean
     | null;
   intro?: string | null;
+  /**
+   * Wish list banner colour, e.g. #1e2bb8. Empty = cobalt.
+   */
+  bannerColor?: string | null;
+  /**
+   * Shapes scattered on the wish list banner.
+   */
+  bannerShape?: ('stars' | 'spiral' | 'flower' | 'squiggle' | 'rose' | 'moon' | 'bow' | 'wing') | null;
   note?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -465,6 +473,8 @@ export interface UsersSelect<T extends boolean = true> {
   birthday?: T;
   avatar?: T;
   intro?: T;
+  bannerColor?: T;
+  bannerShape?: T;
   note?: T;
   updatedAt?: T;
   createdAt?: T;

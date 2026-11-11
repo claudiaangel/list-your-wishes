@@ -1,5 +1,5 @@
 // Shapes shared by the API routes and the browser. Safe to import from client code.
-import type { Category } from './validation'
+import type { BannerShape, Category } from './validation'
 
 export type AvatarChoice = Record<string, string>
 
@@ -63,6 +63,8 @@ export type SessionUser = {
   avatar: AvatarChoice
   intro: string
   note: string
+  bannerColor: string
+  bannerShape: BannerShape
 }
 
 export type Photo = { id: string; url: string; cardUrl: string; cutout: boolean }

@@ -81,3 +81,14 @@ export function validateAvatarShape(value: unknown): true | string {
   }
   return true
 }
+
+// Banner on your own wish list: colour, and the little shapes scattered on it.
+export const DEFAULT_BANNER_COLOR = '#1e2bb8'
+export const BANNER_SHAPES = ['stars', 'spiral', 'flower', 'squiggle', 'rose', 'moon', 'bow', 'wing'] as const
+export type BannerShape = (typeof BANNER_SHAPES)[number]
+export const HEX_COLOR = /^#[0-9a-f]{6}$/i
+
+export function validateBannerColor(value: unknown): true | string {
+  if (value === null || value === undefined || value === '') return true
+  return typeof value === 'string' && HEX_COLOR.test(value) ? true : 'Pick a colour.'
+}

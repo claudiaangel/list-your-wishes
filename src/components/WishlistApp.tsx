@@ -13,7 +13,13 @@ import {
   type PublicProfile,
   type SessionUser,
 } from '@/lib/types'
-import { CATEGORIES, type Category } from '@/lib/validation'
+import {
+  BANNER_SHAPES,
+  CATEGORIES,
+  DEFAULT_BANNER_COLOR,
+  type BannerShape,
+  type Category,
+} from '@/lib/validation'
 
 type Page = 'wishlist' | 'friends' | 'savings' | 'avatar'
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -115,6 +121,82 @@ function BannerStar() {
         d="M25 2c2 7 4 12 6 17 6-2 11-3 17-3-5 5-8 9-12 13 4 6 6 11 8 18-7-4-12-7-17-10-5 5-9 8-15 12 1-7 2-12 3-18-5-2-10-4-15-7 7-2 12-4 18-6 2-6 4-11 7-16Z"
         fill="currentColor"
       />
+    </svg>
+  )
+}
+
+const BANNER_COLORS: { value: string; label: string }[] = [
+  { value: '#1e2bb8', label: 'cobalt' },
+  { value: '#1b1b1f', label: 'ink' },
+  { value: '#b8232f', label: 'cherry' },
+  { value: '#c0643f', label: 'terracotta' },
+  { value: '#5b2a6e', label: 'plum' },
+  { value: '#2f5d46', label: 'forest' },
+  { value: '#f2c4ce', label: 'blush' },
+  { value: '#f3dd8a', label: 'butter' },
+  { value: '#9fb59a', label: 'sage' },
+  { value: '#c9b6e4', label: 'lilac' },
+  { value: '#a9c8e8', label: 'sky' },
+]
+
+/** Light banners get blue ink text and shapes; dark ones keep paper-white. */
+function isLightColor(hex: string) {
+  const n = parseInt(hex.slice(1), 16)
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4
+}
+
+function bannerStyle(color: string) {
+  const light = isLightColor(color)
+  return {
+    className: `${color.toLowerCase() === DEFAULT_BANNER_COLOR ? '' : 'is-custom'} ${light ? 'is-light' : ''}`,
+    style: { background: color } as React.CSSProperties,
+    light,
+  }
+}
+
+/** The five little things scattered on the banner: the original stars, or one of the drawn shapes. */
+function BannerDecor({ shape, light }: { shape: BannerShape; light: boolean }) {
+  if (shape === 'stars') {
+    return (
+      <div className="hero-stars" aria-hidden="true">
+        <BannerStar />
+        <BannerStar />
+        <BannerStar />
+        <BannerStar />
+        <BannerStar />
+      </div>
+    )
+  }
+  const src = `/banner-shapes/${shape}.webp`
+  return (
+    <div className="hero-stars hero-shapes" aria-hidden="true">
+      {[0, 1, 2, 3, 4].map((i) =>
+        light ? (
+          <span key={i} className="hero-shape is-ink" style={{ maskImage: `url(${src})`, WebkitMaskImage: `url(${src})` }} />
+        ) : (
+          <img key={i} className="hero-shape" src={src} alt="" />
+        ),
+      )}
+    </div>
+  )
+}
+
+function PenIcon() {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path
+        d="M21.6 5.2c1.4-1.3 3.4-1.2 4.7.2 1.3 1.4 1.1 3.4-.3 4.6L11.2 24.1l-6.1 2.2 2.1-6.2L21.6 5.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M19.2 7.6l4.9 4.9M7.3 20.2l4.3 4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M4.6 28.4c3.4-.9 6.6-.7 9.7.2" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -268,6 +350,8 @@ export default function App({
   const [showBought, setShowBought] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [formWish, setFormWish] = useState<MyWish | 'new' | null>(null)
+  const [bannerOpen, setBannerOpen] = useState(false)
+  const heroLook = bannerStyle(sessionUser?.bannerColor ?? DEFAULT_BANNER_COLOR)
 
   const [friends, setFriends] = useState<PublicProfile[]>([])
   const [friendsStatus, setFriendsStatus] = useState<Status>('idle')
@@ -565,19 +649,29 @@ export default function App({
       <main>
         {page === 'wishlist' && (
           <>
-            <section className="hero">
-              <div className="hero-stars" aria-hidden="true">
-                <BannerStar />
-                <BannerStar />
-                <BannerStar />
-                <BannerStar />
-                <BannerStar />
-              </div>
+            <section
+              className={`hero ${sessionUser ? heroLook.className : ''}`}
+              style={sessionUser ? heroLook.style : undefined}
+            >
+              <BannerDecor
+                shape={sessionUser?.bannerShape ?? 'stars'}
+                light={Boolean(sessionUser) && heroLook.light}
+              />
+              {sessionUser && (
+                <button
+                  className="banner-pen"
+                  onClick={() => setBannerOpen(true)}
+                  aria-label="Change the banner"
+                  title="Change the banner"
+                >
+                  <PenIcon />
+                </button>
+              )}
               <h1>{sessionUser ? `${firstName(sessionUser.name)}’s Wish List` : 'Your Wish List'}</h1>
               {sessionUser ? (
                 <div className="editable-note">
                   <p
-                    key={sessionUser.id}
+                    key={`${sessionUser.id}-${sessionUser.intro}`}
                     className="intro"
                     contentEditable
                     suppressContentEditableWarning
@@ -934,6 +1028,20 @@ export default function App({
           number={friendView.wishes.findIndex((w) => w.id === friendSelected) + 1}
           onClose={() => setFriendSelected(null)}
           onReserve={(w) => toggleReserve(w)}
+        />
+      )}
+      {bannerOpen && sessionUser && (
+        <BannerModal
+          user={sessionUser}
+          onClose={() => setBannerOpen(false)}
+          onSaved={(user) => {
+            setSessionUser(user)
+            setBannerOpen(false)
+          }}
+          onAuthError={() => {
+            setBannerOpen(false)
+            handleError(new ApiError(401, 'Please sign in first.'))
+          }}
         />
       )}
       {formWish && (
@@ -1770,6 +1878,136 @@ function AccountModal({
           </button>
         </form>
       )}
+    </ModalFrame>
+  )
+}
+
+function BannerModal({
+  user,
+  onClose,
+  onSaved,
+  onAuthError,
+}: {
+  user: SessionUser
+  onClose: () => void
+  onSaved: (user: SessionUser) => void
+  onAuthError: () => void
+}) {
+  const [color, setColor] = useState(user.bannerColor)
+  const [shape, setShape] = useState<BannerShape>(user.bannerShape)
+  const [intro, setIntro] = useState(user.intro || DEFAULT_INTRO)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const look = bannerStyle(color)
+
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      const text = intro.trim()
+      const { user: updated } = await api<{ user: SessionUser }>('/api/app/me', {
+        method: 'PATCH',
+        json: { bannerColor: color, bannerShape: shape, intro: text === DEFAULT_INTRO ? '' : text },
+      })
+      onSaved(updated)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) onAuthError()
+      else setError(message(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalFrame onClose={onClose} label="Change the banner">
+      <form className="add-modal banner-modal" onSubmit={save}>
+        <div className="modal-heading">
+          <Star />
+          <p className="eyebrow">make it yours</p>
+          <h2>Your Banner</h2>
+        </div>
+
+        <div className={`banner-preview ${look.className}`} style={look.style} aria-hidden="true">
+          <BannerDecor shape={shape} light={look.light} />
+          <strong>{firstName(user.name)}’s Wish List</strong>
+          <span>{intro.trim() || DEFAULT_INTRO}</span>
+        </div>
+
+        <fieldset className="banner-field">
+          <legend>Colour</legend>
+          <div className="banner-swatches">
+            {BANNER_COLORS.map((c) => (
+              <button
+                type="button"
+                key={c.value}
+                className={`banner-swatch ${color.toLowerCase() === c.value ? 'selected' : ''}`}
+                style={{ background: c.value }}
+                onClick={() => setColor(c.value)}
+                aria-label={c.label}
+                aria-pressed={color.toLowerCase() === c.value}
+                title={c.label}
+              />
+            ))}
+            <label
+              className={`banner-swatch is-custom-color ${
+                BANNER_COLORS.some((c) => c.value === color.toLowerCase()) ? '' : 'selected'
+              }`}
+              title="any colour"
+            >
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                aria-label="Pick any colour"
+              />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="banner-field">
+          <legend>Little shapes</legend>
+          <div className="banner-shape-picker">
+            {BANNER_SHAPES.map((s) => (
+              <button
+                type="button"
+                key={s}
+                className={shape === s ? 'selected' : ''}
+                onClick={() => setShape(s)}
+                aria-pressed={shape === s}
+                style={{ background: color }}
+              >
+                {s === 'stars' ? (
+                  <span className={`shape-thumb ${look.light ? 'is-ink' : ''}`}>
+                    <BannerStar />
+                  </span>
+                ) : look.light ? (
+                  <span
+                    className="shape-thumb is-ink is-mask"
+                    style={{
+                      maskImage: `url(/banner-shapes/${s}.webp)`,
+                      WebkitMaskImage: `url(/banner-shapes/${s}.webp)`,
+                    }}
+                  />
+                ) : (
+                  <img className="shape-thumb" src={`/banner-shapes/${s}.webp`} alt="" />
+                )}
+                <small>{s}</small>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <label className="wide-field">
+          <span>Words under your name</span>
+          <textarea value={intro} onChange={(e) => setIntro(e.target.value)} maxLength={280} rows={2} />
+        </label>
+
+        {error && <p className="form-error">{error}</p>}
+        <button className="ink-button" disabled={saving}>
+          {saving ? 'Saving…' : 'Save my banner'}
+        </button>
+      </form>
     </ModalFrame>
   )
 }

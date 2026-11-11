@@ -5,6 +5,7 @@ import { getPayload, type Payload } from 'payload'
 import type { User } from '@/payload-types'
 import { getAvatarManifest } from './avatars'
 import { normalizeAvatar, type SessionUser } from './types'
+import { DEFAULT_BANNER_COLOR, type BannerShape } from './validation'
 
 const SESSION_COOKIE = 'lyw-session'
 
@@ -43,5 +44,7 @@ export function toSessionUser(user: User): SessionUser {
     avatar: normalizeAvatar(user.avatar, getAvatarManifest()),
     intro: user.intro ?? '',
     note: user.note ?? '',
+    bannerColor: user.bannerColor || DEFAULT_BANNER_COLOR,
+    bannerShape: (user.bannerShape as BannerShape | null | undefined) || 'stars',
   }
 }
