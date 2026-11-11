@@ -1,30 +1,33 @@
 {
-  "name": "figma-make-app",
+  "name": "list-your-wishes",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "NODE_OPTIONS=--no-deprecation next dev --port ${PORT:-3000} --hostname 0.0.0.0",
-    "build": "NODE_OPTIONS=--no-deprecation payload build",
+    "dev": "node scripts/avatar-manifest.mjs && NODE_OPTIONS=--no-deprecation next dev",
+    "build": "node scripts/avatar-manifest.mjs && NODE_OPTIONS=--no-deprecation next build",
     "start": "NODE_OPTIONS=--no-deprecation next start",
-    "format": "oxfmt",
+    "typecheck": "node scripts/avatar-manifest.mjs && tsc --noEmit",
+    "avatars": "node scripts/avatar-manifest.mjs",
+    "seed": "NODE_OPTIONS=--no-deprecation payload run src/seed/index.ts",
+    "create-admin": "NODE_OPTIONS=--no-deprecation payload run scripts/create-admin.ts",
+    "migrate": "NODE_OPTIONS=--no-deprecation payload migrate",
+    "migrate:create": "NODE_OPTIONS=--no-deprecation payload migrate:create",
     "generate:importmap": "NODE_OPTIONS=--no-deprecation payload generate:importmap",
     "generate:types": "NODE_OPTIONS=--no-deprecation payload generate:types",
-    "payload": "NODE_OPTIONS=--no-deprecation payload"
+    "payload": "NODE_OPTIONS=--no-deprecation payload",
+    "format": "oxfmt",
+    "test:api": "node scripts/smoke-test.mjs",
+    "vercel-build": "NODE_OPTIONS=--no-deprecation payload migrate && pnpm build"
   },
   "dependencies": {
-    "@payloadcms/figma": "1.0.0-beta.1",
-    "@payloadcms/next": "4.0.0-beta.6",
-    "@payloadcms/plugin-cloud-storage": "4.0.0-beta.6",
-    "@payloadcms/plugin-mcp": "4.0.0-beta.6",
-    "@payloadcms/richtext-lexical": "4.0.0-beta.6",
-    "@payloadcms/translations": "4.0.0-beta.6",
-    "@payloadcms/ui": "4.0.0-beta.6",
+    "@payloadcms/db-postgres": "3.93.0",
+    "@payloadcms/next": "3.93.0",
+    "@payloadcms/storage-vercel-blob": "3.93.0",
+    "@payloadcms/ui": "3.93.0",
     "graphql": "^16.8.1",
-    "html-react-parser": "^5.2.10",
-    "monaco-editor": "0.55.1",
-    "next": "16.4.2",
-    "payload": "4.0.0-beta.6",
+    "next": "16.4.6",
+    "payload": "3.93.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "sharp": "^0.35.4"
@@ -40,14 +43,7 @@
     "typescript": "6.0.3"
   },
   "engines": {
-    "node": ">=24.22.1",
-    "pnpm": "^9 || ^10 || ^11"
+    "node": ">=22.23.4"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp",
-      "esbuild",
-      "unrs-resolver"
-    ]
-  }
+  "packageManager": "pnpm@12.18.0"
 }

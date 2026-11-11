@@ -1,106 +1,142 @@
-import type { Access, CollectionAfterChangeHook, CollectionConfig } from 'payload'
+import {
+  Forbidden,
+  type CollectionAfterChangeHook,
+  type CollectionBeforeDeleteHook,
+  type CollectionConfig,
+} from 'payload'
+import { isAdmin, ownedBy } from '../access'
+import {
+  normalizeHandle,
+  validateAvatarShape,
+  validateBirthday,
+  validateHandle,
+  validateName,
+} from '../lib/validation'
 
-const ownAccount: Access = ({ req }) => {
-  if (req.user?.collection === 'admins') return true
-  if (req.user?.collection !== 'users') return false
-  return { id: { equals: req.user.id } }
-}
-
+/** Keep the public profile (no email, no birth year) in sync with the account. */
 const syncPublicProfile: CollectionAfterChangeHook = async ({ doc, req }) => {
   const birthday = new Date(doc.birthday)
-  const profileData = {
+  const data = {
+    user: doc.id,
     name: doc.name,
     handle: doc.handle,
     note: doc.note || 'new wishes incoming',
-    hair: doc.hair,
+    avatar: doc.avatar ?? {},
     birthdayMonth: birthday.getUTCMonth() + 1,
     birthdayDay: birthday.getUTCDate(),
-    user: doc.id,
   }
-
   const existing = await req.payload.find({
-    collection: 'friend-profiles',
-    overrideAccess: true,
-    req,
+    collection: 'profiles',
+    where: { user: { equals: doc.id } },
     limit: 1,
     depth: 0,
-    where: { user: { equals: doc.id } },
+    overrideAccess: true,
+    req,
   })
-
   if (existing.docs[0]) {
     await req.payload.update({
-      collection: 'friend-profiles',
+      collection: 'profiles',
       id: existing.docs[0].id,
-      data: profileData,
+      data,
       overrideAccess: true,
       req,
     })
   } else {
-    await req.payload.create({
-      collection: 'friend-profiles',
-      data: { ...profileData, featured: false },
-      overrideAccess: true,
-      req,
-    })
+    await req.payload.create({ collection: 'profiles', data, overrideAccess: true, req })
   }
-
   return doc
 }
 
+/**
+ * Deleting an account removes everything that belongs to it. Runs *before* the
+ * delete because the database would otherwise try to null required references.
+ */
+const deleteUserData: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  const opts = { overrideAccess: true, req } as const
+  await req.payload.delete({ collection: 'profiles', where: { user: { equals: id } }, ...opts })
+  await req.payload.delete({ collection: 'wishes', where: { owner: { equals: id } }, ...opts })
+  await req.payload.delete({
+    collection: 'friendships',
+    where: { or: [{ user: { equals: id } }, { friend: { equals: id } }] },
+    ...opts,
+  })
+  await req.payload.delete({
+    collection: 'reservations',
+    where: { reserver: { equals: id } },
+    ...opts,
+  })
+  await req.payload.delete({ collection: 'media', where: { owner: { equals: id } }, ...opts })
+}
+
+/** Public app accounts. Never granted access to Payload Admin. */
 export const Users: CollectionConfig = {
   slug: 'users',
-  auth: true,
+  auth: {
+    tokenExpiration: 60 * 60 * 24 * 14,
+    maxLoginAttempts: 8,
+    lockTime: 15 * 60 * 1000,
+  },
   admin: {
-    hidden: true,
     useAsTitle: 'name',
+    defaultColumns: ['name', 'handle', 'email', 'createdAt'],
+    group: 'App',
   },
   access: {
-    create: () => true,
-    read: ownAccount,
-    update: ownAccount,
-    delete: ownAccount,
+    // Signup goes through /api/app/auth/signup (validated, rate-limited by Payload).
+    create: ({ req }) => isAdmin(req),
+    read: ownedBy('id'),
+    update: ownedBy('id'),
+    delete: ownedBy('id'),
   },
   hooks: {
+    beforeValidate: [
+      ({ data }) => {
+        if (data && 'handle' in data) data.handle = normalizeHandle(data.handle)
+        if (data && typeof data.name === 'string') data.name = data.name.trim()
+        return data
+      },
+    ],
+    beforeChange: [
+      ({ operation, req, data }) => {
+        // Also closes Payload's /api/users/first-register shortcut.
+        if (operation === 'create' && !isAdmin(req) && req.context.allowSignup !== true) {
+          throw new Forbidden(req.t)
+        }
+        return data
+      },
+    ],
     afterChange: [syncPublicProfile],
+    beforeDelete: [deleteUserData],
   },
   fields: [
-    {
-      name: 'name',
-      type: 'text',
-      required: true,
-    },
+    { name: 'name', type: 'text', required: true, validate: validateName },
     {
       name: 'handle',
       type: 'text',
       required: true,
       unique: true,
       index: true,
+      validate: validateHandle,
+      admin: { description: 'Public @username, without the @.' },
     },
     {
       name: 'birthday',
       type: 'date',
       required: true,
+      validate: validateBirthday,
       admin: {
-        description: 'Private. Only the month and day are copied to the public profile.',
+        date: { pickerAppearance: 'dayOnly' },
+        description: 'Private. Only month and day are copied to the public profile.',
       },
     },
     {
-      name: 'hair',
-      type: 'select',
-      required: true,
-      defaultValue: 'waves',
-      options: [
-        { label: 'Waves', value: 'waves' },
-        { label: 'Bob', value: 'bob' },
-        { label: 'Bun', value: 'bun' },
-        { label: 'Curls', value: 'curls' },
-      ],
+      name: 'avatar',
+      type: 'json',
+      validate: validateAvatarShape,
+      admin: { description: 'Chosen avatar part for each layer, e.g. {"hair": "waves"}.' },
     },
-    {
-      name: 'note',
-      type: 'text',
-      defaultValue: 'new wishes incoming',
-    },
+    { name: 'intro', type: 'text', maxLength: 280 },
+    { name: 'note', type: 'text', maxLength: 80, defaultValue: 'new wishes incoming' },
   ],
   timestamps: true,
 }

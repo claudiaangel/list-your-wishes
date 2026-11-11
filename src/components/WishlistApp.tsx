@@ -1,74 +1,97 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  isBirthdayToday,
+  normalizeAvatar,
+  type AvatarChoice,
+  type AvatarManifest,
+  type FriendWish,
+  type MyWish,
+  type Photo,
+  type PublicProfile,
+  type SessionUser,
+} from '@/lib/types'
+import { CATEGORIES, type Category } from '@/lib/validation'
 
 type Page = 'wishlist' | 'friends' | 'savings' | 'avatar'
-type Wish = {
-  id: number
-  name: string
-  price: number
-  store: string
-  category: string
-  hearts: number
-  image: string
-  cutout?: boolean
+type Status = 'idle' | 'loading' | 'ready' | 'error'
+type GridItem = Pick<MyWish, 'id' | 'name' | 'price' | 'store' | 'hearts' | 'photo'> & {
   bought?: boolean
-  saved?: number
+  taken?: boolean
+  reservedByMe?: boolean
 }
 
-type FriendProfile = {
-  id: string
-  name: string
-  handle: string
-  note: string
-  hair: string
-  featured?: boolean
-  isBirthday?: boolean
+const DEFAULT_INTRO = 'A quiet corner for everything I love, need, and might just treat myself to.'
+const DEFAULT_NOTE = 'The sort of thing that makes even an ordinary Tuesday feel special.'
+const HEART_WORDS = ['', 'one', 'two', 'three']
+
+// ---------------------------------------------------------------- helpers
+
+class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message)
+  }
 }
 
-type AppSessionUser = {
-  id: string
-  name: string
-  handle: string
-  hair: 'waves' | 'bob' | 'bun' | 'curls'
+async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+  const { json, ...rest } = init
+  const response = await fetch(path, {
+    ...rest,
+    headers: json === undefined ? rest.headers : { 'Content-Type': 'application/json' },
+    body: json === undefined ? rest.body : JSON.stringify(json),
+  })
+  const data = (await response.json().catch(() => ({}))) as { error?: string }
+  if (!response.ok) {
+    throw new ApiError(response.status, data.error || 'Something went wrong. Please try again.')
+  }
+  return data as T
 }
 
-const initialWishes: Wish[] = [
-  {
-    id: 1,
-    name: 'Classic Mini II boots',
-    price: 170,
-    store: 'UGG',
-    category: 'Shoes',
-    hearts: 3,
-    image: '/wishes/ugg-boots.png',
-    cutout: true,
-    saved: 60,
-  },
-  {
-    id: 2,
-    name: 'Second Skin tank',
-    price: 48,
-    store: 'ARKET',
-    category: 'Clothes',
-    hearts: 2,
-    image: '/wishes/product-02.png',
-    cutout: true,
-    saved: 20,
-  },
-  {
-    id: 3,
-    name: 'Rouge Artist lipstick set',
-    price: 145,
-    store: 'Make Up For Ever',
-    category: 'Beauty',
-    hearts: 3,
-    image: '/wishes/lipsticks.png',
-    cutout: true,
-    bought: true,
-  },
-]
+const message = (error: unknown) =>
+  error instanceof Error ? error.message : 'Something went wrong. Please try again.'
+
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
+
+const formatMoney = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(2)
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** Shrinks a photo in the browser so uploads stay small (and under hosting limits). */
+async function shrinkPhoto(file: File): Promise<Blob> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new window.Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('Couldn’t read that photo. Try a JPEG or PNG.'))
+      el.src = url
+    })
+    const keepAlpha = file.type === 'image/png' || file.type === 'image/webp'
+    for (const max of [1600, 1200, 900]) {
+      const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const toBlob = (type: string) =>
+        new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9))
+      let blob = keepAlpha ? await toBlob('image/webp') : await toBlob('image/jpeg')
+      if (keepAlpha && blob?.type !== 'image/webp') blob = await toBlob('image/png')
+      if (blob && blob.size < 3.9 * 1024 * 1024) return blob
+    }
+    throw new Error('That photo is too large. Try a smaller one.')
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+// ---------------------------------------------------------------- drawings
 
 function Star({ className = '' }: { className?: string }) {
   return (
@@ -124,7 +147,8 @@ function BirthdayCrown() {
   )
 }
 
-function Avatar({
+/** The original hand-drawn SVG portrait (used until drawings are added to public/avatars). */
+function InkAvatar({
   hair = 'waves',
   accessory = 'none',
   eyes = 'sleepy',
@@ -188,6 +212,32 @@ function Avatar({
   )
 }
 
+/** Renders an avatar from your drawn parts, or the built-in ink portrait. */
+function Avatar({
+  choice,
+  manifest,
+  size = 'md',
+}: {
+  choice: AvatarChoice
+  manifest: AvatarManifest
+  size?: 'sm' | 'md' | 'lg'
+}) {
+  const parts = normalizeAvatar(choice, manifest)
+  if (manifest.kind === 'builtin') {
+    return <InkAvatar hair={parts.hair} eyes={parts.eyes} accessory={parts.accessory} size={size} />
+  }
+  return (
+    <div className={`ink-avatar avatar-${size}`} aria-label="Hand drawn avatar">
+      <div className="avatar-layers">
+        {manifest.layers.map((layer) => {
+          const option = layer.options.find((o) => o.key === parts[layer.key])
+          return option?.src ? <img key={layer.key} src={option.src} alt="" /> : null
+        })}
+      </div>
+    </div>
+  )
+}
+
 function Logo({ onClick }: { onClick: () => void }) {
   return (
     <button className="logo" onClick={onClick}>
@@ -198,88 +248,121 @@ function Logo({ onClick }: { onClick: () => void }) {
   )
 }
 
-function App() {
+// ---------------------------------------------------------------- app
+
+export default function App({
+  initialUser,
+  manifest,
+}: {
+  initialUser: SessionUser | null
+  manifest: AvatarManifest
+}) {
   const [page, setPage] = useState<Page>('wishlist')
-  const [wishes, setWishes] = useState(initialWishes)
-  const [category, setCategory] = useState('All')
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(initialUser)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const [wishes, setWishes] = useState<MyWish[]>([])
+  const [wishesStatus, setWishesStatus] = useState<Status>('idle')
+  const [category, setCategory] = useState<'All' | Category>('All')
   const [showBought, setShowBought] = useState(true)
-  const [selected, setSelected] = useState<Wish | null>(null)
-  const [adding, setAdding] = useState(false)
-  const [friend, setFriend] = useState<string | null>(null)
-  const [reserved, setReserved] = useState<number[]>([])
-  const [hair, setHair] = useState('waves')
-  const [eyes, setEyes] = useState('sleepy')
-  const [accessory, setAccessory] = useState('none')
-  const [heroIntro, setHeroIntro] = useState(
-    'A quiet corner for everything I love, need, and might just treat myself to.',
-  )
-  const [directory, setDirectory] = useState<FriendProfile[]>([])
-  const [friendIds, setFriendIds] = useState<string[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [formWish, setFormWish] = useState<MyWish | 'new' | null>(null)
+
+  const [friends, setFriends] = useState<PublicProfile[]>([])
+  const [friendsStatus, setFriendsStatus] = useState<Status>('idle')
   const [friendSearchOpen, setFriendSearchOpen] = useState(false)
   const [friendQuery, setFriendQuery] = useState('')
-  const [directoryStatus, setDirectoryStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [accountOpen, setAccountOpen] = useState(false)
-  const [sessionUser, setSessionUser] = useState<AppSessionUser | null>(null)
-  const [sessionStatus, setSessionStatus] = useState<'loading' | 'ready'>('loading')
+  const [people, setPeople] = useState<PublicProfile[]>([])
+  const [peopleStatus, setPeopleStatus] = useState<Status>('idle')
+  const [friendView, setFriendView] = useState<{
+    profile: PublicProfile
+    wishes: FriendWish[]
+    status: Status
+  } | null>(null)
+  const [friendSelected, setFriendSelected] = useState<string | null>(null)
+
+  const [avatarDraft, setAvatarDraft] = useState<AvatarChoice>(() =>
+    normalizeAvatar(initialUser?.avatar, manifest),
+  )
+  const [avatarSaving, setAvatarSaving] = useState(false)
+
+  const userId = sessionUser?.id ?? null
+
+  const handleError = useCallback((error: unknown) => {
+    if (error instanceof ApiError && error.status === 401) {
+      setSessionUser(null)
+      setNotice('Your session ended. Please sign in again.')
+    } else {
+      setNotice(message(error))
+    }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(''), 4500)
+    return () => window.clearTimeout(timer)
+  }, [notice])
 
-    fetch('/api/friend-profiles')
-      .then((response) => {
-        if (!response.ok) throw new Error('Could not load the friend directory')
-        return response.json() as Promise<{ profiles: FriendProfile[] }>
-      })
-      .then(({ profiles }) => {
+  // Load your wishes and friends whenever someone signs in; clear them on sign out.
+  useEffect(() => {
+    if (!userId) {
+      setWishes([])
+      setFriends([])
+      setWishesStatus('idle')
+      setFriendsStatus('idle')
+      setFriendView(null)
+      return
+    }
+    let cancelled = false
+    setWishesStatus('loading')
+    setFriendsStatus('loading')
+    api<{ wishes: MyWish[] }>('/api/app/wishes')
+      .then(({ wishes }) => {
         if (cancelled) return
-        setDirectory(profiles)
-        const stored = window.localStorage.getItem('list-your-wishes-friends')
-        let storedIds: string[] | null = null
-        if (stored !== null) {
-          try {
-            const parsed = JSON.parse(stored)
-            if (Array.isArray(parsed) && parsed.every((id) => typeof id === 'string'))
-              storedIds = parsed
-          } catch {
-            window.localStorage.removeItem('list-your-wishes-friends')
-          }
-        }
-        setFriendIds(
-          storedIds ?? profiles.filter((profile) => profile.featured).map((profile) => profile.id),
-        )
-        setDirectoryStatus('ready')
+        setWishes(wishes)
+        setWishesStatus('ready')
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setWishesStatus('error')
+        handleError(error)
+      })
+    api<{ friends: PublicProfile[] }>('/api/app/friends')
+      .then(({ friends }) => {
+        if (cancelled) return
+        setFriends(friends)
+        setFriendsStatus('ready')
       })
       .catch(() => {
-        if (!cancelled) setDirectoryStatus('error')
+        if (!cancelled) setFriendsStatus('error')
       })
-
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [userId, handleError])
 
+  // Directory search, lightly debounced.
   useEffect(() => {
+    if (!userId || !friendSearchOpen) return
     let cancelled = false
-
-    fetch('/api/app-auth/session')
-      .then((response) => response.json() as Promise<{ user: AppSessionUser | null }>)
-      .then(({ user }) => {
-        if (!cancelled) {
-          setSessionUser(user)
-          if (user) setHair(user.hair)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setSessionUser(null)
-      })
-      .finally(() => {
-        if (!cancelled) setSessionStatus('ready')
-      })
-
+    setPeopleStatus('loading')
+    const timer = window.setTimeout(() => {
+      api<{ people: PublicProfile[] }>(`/api/app/people?q=${encodeURIComponent(friendQuery)}`)
+        .then(({ people }) => {
+          if (cancelled) return
+          setPeople(people)
+          setPeopleStatus('ready')
+        })
+        .catch(() => {
+          if (!cancelled) setPeopleStatus('error')
+        })
+    }, 250)
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [])
+  }, [userId, friendSearchOpen, friendQuery])
 
   const visible = useMemo(
     () =>
@@ -288,32 +371,171 @@ function App() {
       ),
     [wishes, category, showBought],
   )
-  const friends = useMemo(
-    () => directory.filter((profile) => friendIds.includes(profile.id)),
-    [directory, friendIds],
-  )
-  const friendResults = useMemo(() => {
-    const query = friendQuery.trim().toLowerCase()
-    return directory.filter(
-      (profile) => !query || `${profile.name} ${profile.handle}`.toLowerCase().includes(query),
-    )
-  }, [directory, friendQuery])
+  const selected = wishes.find((w) => w.id === selectedId) ?? null
+  const jarWishes = wishes.filter((w) => w.savingsGoal !== null && !w.bought)
+  const savedTotal = jarWishes.reduce((sum, w) => sum + w.saved, 0)
+  const goalTotal = jarWishes.reduce((sum, w) => sum + (w.savingsGoal ?? 0), 0)
+  const jarRatio = goalTotal > 0 ? Math.min(1, savedTotal / goalTotal) : 0
+
   const go = (next: Page) => {
     setPage(next)
-    setFriend(null)
+    setFriendView(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
-  const toggleBought = (id: number) =>
-    setWishes((items) => items.map((w) => (w.id === id ? { ...w, bought: !w.bought } : w)))
-  const toggleFriend = (id: string) => {
-    setFriendIds((current) => {
-      const next = current.includes(id)
-        ? current.filter((friendId) => friendId !== id)
-        : [...current, id]
-      window.localStorage.setItem('list-your-wishes-friends', JSON.stringify(next))
-      return next
-    })
+
+  const replaceWish = (wish: MyWish) =>
+    setWishes((all) => all.map((w) => (w.id === wish.id ? wish : w)))
+
+  const updateWish = async (
+    id: string,
+    data: Partial<Pick<MyWish, 'bought' | 'savingsGoal' | 'saved'>>,
+  ) => {
+    try {
+      const { wish } = await api<{ wish: MyWish }>(`/api/app/wishes/${id}`, {
+        method: 'PATCH',
+        json: data,
+      })
+      replaceWish(wish)
+      return wish
+    } catch (error) {
+      handleError(error)
+      return null
+    }
   }
+
+  const deleteWish = async (id: string) => {
+    try {
+      await api(`/api/app/wishes/${id}`, { method: 'DELETE' })
+      setWishes((all) => all.filter((w) => w.id !== id))
+      setSelectedId(null)
+    } catch (error) {
+      handleError(error)
+    }
+  }
+
+  const deposit = async (id: string, amount: number) => {
+    try {
+      const { wish } = await api<{ wish: MyWish }>(`/api/app/wishes/${id}/deposit`, {
+        method: 'POST',
+        json: { amount },
+      })
+      replaceWish(wish)
+      return true
+    } catch (error) {
+      handleError(error)
+      return false
+    }
+  }
+
+  const saveIntro = async (intro: string) => {
+    if (!sessionUser || intro === sessionUser.intro) return
+    try {
+      const { user } = await api<{ user: SessionUser }>('/api/app/me', {
+        method: 'PATCH',
+        json: { intro },
+      })
+      setSessionUser(user)
+    } catch (error) {
+      handleError(error)
+    }
+  }
+
+  const toggleFriend = async (profile: PublicProfile) => {
+    const isFriend = friends.some((f) => f.userId === profile.userId)
+    try {
+      if (isFriend) {
+        await api(`/api/app/friends/${profile.userId}`, { method: 'DELETE' })
+        setFriends((all) => all.filter((f) => f.userId !== profile.userId))
+      } else {
+        await api('/api/app/friends', { method: 'POST', json: { userId: profile.userId } })
+        setFriends((all) =>
+          [...all, { ...profile, isFriend: true }].sort((a, b) => a.name.localeCompare(b.name)),
+        )
+      }
+      setPeople((all) =>
+        all.map((p) => (p.userId === profile.userId ? { ...p, isFriend: !isFriend } : p)),
+      )
+    } catch (error) {
+      handleError(error)
+    }
+  }
+
+  const openFriend = async (profile: PublicProfile) => {
+    setFriendView({ profile, wishes: [], status: 'loading' })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    try {
+      const result = await api<{ profile: PublicProfile; wishes: FriendWish[] }>(
+        `/api/app/friends/${profile.userId}/wishes`,
+      )
+      setFriendView({ ...result, status: 'ready' })
+    } catch (error) {
+      setFriendView((view) => (view ? { ...view, status: 'error' } : view))
+      handleError(error)
+    }
+  }
+
+  const toggleReserve = async (wish: FriendWish) => {
+    if (wish.taken && !wish.reservedByMe) return
+    try {
+      if (wish.reservedByMe) {
+        await api(`/api/app/reservations/${wish.id}`, { method: 'DELETE' })
+      } else {
+        await api('/api/app/reservations', { method: 'POST', json: { wishId: wish.id } })
+      }
+      const reserved = !wish.reservedByMe
+      setFriendView((view) =>
+        view
+          ? {
+              ...view,
+              wishes: view.wishes.map((w) =>
+                w.id === wish.id ? { ...w, reservedByMe: reserved, taken: reserved } : w,
+              ),
+            }
+          : view,
+      )
+    } catch (error) {
+      // Someone else got there first: show it as taken.
+      if (error instanceof ApiError && error.status === 409) {
+        setFriendView((view) =>
+          view
+            ? {
+                ...view,
+                wishes: view.wishes.map((w) => (w.id === wish.id ? { ...w, taken: true } : w)),
+              }
+            : view,
+        )
+      }
+      handleError(error)
+    }
+  }
+
+  const saveAvatar = async () => {
+    setAvatarSaving(true)
+    try {
+      const { user } = await api<{ user: SessionUser }>('/api/app/me', {
+        method: 'PATCH',
+        json: { avatar: avatarDraft },
+      })
+      setSessionUser(user)
+      go('wishlist')
+    } catch (error) {
+      handleError(error)
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
+  const myAvatar = sessionUser?.avatar ?? {}
+  const signInPrompt = (text: string) => (
+    <div className="empty">
+      <Star />
+      <h2>Sign in to begin</h2>
+      <p>{text}</p>
+      <button className="ink-button" onClick={() => setAccountOpen(true)}>
+        Sign in or create an account
+      </button>
+    </div>
+  )
 
   return (
     <div className="app-shell">
@@ -332,9 +554,9 @@ function App() {
           </button>
         </nav>
         <button className="avatar-button" onClick={() => setAccountOpen(true)} aria-label="Account">
-          <Avatar hair={hair} eyes={eyes} accessory={accessory} size="sm" />
+          <Avatar choice={myAvatar} manifest={manifest} size="sm" />
           <span>
-            {sessionStatus === 'loading' ? 'Account' : sessionUser?.name || 'Sign in'}
+            {sessionUser?.name || 'Sign in'}
             <small>{sessionUser ? `@${sessionUser.handle}` : 'save your wishes'}</small>
           </span>
         </button>
@@ -351,69 +573,94 @@ function App() {
                 <BannerStar />
                 <BannerStar />
               </div>
-              <h1>Claudia’s Wish List</h1>
-              <div className="editable-note">
-                <p
-                  className="intro"
-                  contentEditable
-                  suppressContentEditableWarning
-                  onBlur={(event) => setHeroIntro(event.currentTarget.textContent || heroIntro)}
-                  aria-label="Editable wish list description"
-                >
-                  {heroIntro}
-                </p>
-                <span>click to edit</span>
-              </div>
-            </section>
-            <section className="controls">
-              <div className="tabs" role="tablist">
-                {['All', 'Clothes', 'Shoes', 'Jewelry', 'Bags', 'Beauty', 'Other'].map((c) => (
-                  <button
-                    key={c}
-                    className={category === c ? 'selected' : ''}
-                    onClick={() => setCategory(c)}
+              <h1>{sessionUser ? `${firstName(sessionUser.name)}’s Wish List` : 'Your Wish List'}</h1>
+              {sessionUser ? (
+                <div className="editable-note">
+                  <p
+                    key={sessionUser.id}
+                    className="intro"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={(event) =>
+                      saveIntro((event.currentTarget.textContent || '').trim().slice(0, 280))
+                    }
+                    aria-label="Editable wish list description"
                   >
-                    {c}
-                  </button>
-                ))}
-              </div>
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={showBought}
-                  onChange={(e) => setShowBought(e.target.checked)}
-                />
-                <span />
-                <em>show bought</em>
-              </label>
+                    {sessionUser.intro || DEFAULT_INTRO}
+                  </p>
+                  <span>click to edit</span>
+                </div>
+              ) : (
+                <p className="intro">{DEFAULT_INTRO}</p>
+              )}
             </section>
-            <WishGrid items={visible} onSelect={setSelected} />
-            {visible.length === 0 && (
-              <div className="empty">
-                <Star />
-                <h2>Nothing here yet</h2>
-                <p>That means there’s room for one more lovely thing.</p>
-              </div>
+            {!sessionUser ? (
+              signInPrompt('Make an account to start your list, save up, and see your friends’ wishes.')
+            ) : (
+              <>
+                <section className="controls">
+                  <div className="tabs" role="tablist">
+                    {(['All', ...CATEGORIES] as const).map((c) => (
+                      <button
+                        key={c}
+                        className={category === c ? 'selected' : ''}
+                        onClick={() => setCategory(c)}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={showBought}
+                      onChange={(e) => setShowBought(e.target.checked)}
+                    />
+                    <span />
+                    <em>show bought</em>
+                  </label>
+                </section>
+                <WishGrid items={visible} onSelect={(w) => setSelectedId(w.id)} />
+                {wishesStatus === 'loading' && (
+                  <p className="directory-message">Opening your list…</p>
+                )}
+                {wishesStatus === 'error' && (
+                  <p className="directory-message">Your list couldn’t be loaded. Try refreshing.</p>
+                )}
+                {wishesStatus === 'ready' && visible.length === 0 && (
+                  <div className="empty">
+                    <Star />
+                    <h2>Nothing here yet</h2>
+                    <p>That means there’s room for one more lovely thing.</p>
+                  </div>
+                )}
+              </>
             )}
-            <button className="add-stamp" onClick={() => setAdding(true)}>
+            <button
+              className="add-stamp"
+              onClick={() => (sessionUser ? setFormWish('new') : setAccountOpen(true))}
+            >
               <span>＋</span> Add a wish
             </button>
           </>
         )}
 
-        {page === 'friends' && !friend && (
+        {page === 'friends' && !friendView && (
           <section className="page-section friends-page">
             <div className="friends-title-row">
               <h1>Friends’ Wish Lists</h1>
-              <button
-                className="add-friend-button"
-                onClick={() => setFriendSearchOpen((open) => !open)}
-              >
-                {friendSearchOpen ? 'Close search' : '+ Add friend'}
-              </button>
+              {sessionUser && (
+                <button
+                  className="add-friend-button"
+                  onClick={() => setFriendSearchOpen((open) => !open)}
+                >
+                  {friendSearchOpen ? 'Close search' : '+ Add friend'}
+                </button>
+              )}
             </div>
             <p className="intro">Peek at what the people you love have been dreaming about.</p>
-            {friendSearchOpen && (
+            {!sessionUser && signInPrompt('Sign in to find friends and peek at their lists.')}
+            {sessionUser && friendSearchOpen && (
               <section className="friend-search" aria-label="Find more users">
                 <label htmlFor="friend-search">Find someone</label>
                 <div className="friend-search-input">
@@ -427,35 +674,37 @@ function App() {
                   />
                 </div>
                 <div className="friend-results">
-                  {directoryStatus === 'loading' && (
+                  {peopleStatus === 'loading' && people.length === 0 && (
                     <p className="directory-message">Opening the directory…</p>
                   )}
-                  {directoryStatus === 'error' && (
+                  {peopleStatus === 'error' && (
                     <p className="directory-message">
                       The directory could not be loaded. Try again shortly.
                     </p>
                   )}
-                  {directoryStatus === 'ready' && friendResults.length === 0 && (
+                  {peopleStatus === 'ready' && people.length === 0 && (
                     <p className="directory-message">No users match that search.</p>
                   )}
-                  {friendResults.map((profile) => {
-                    const isFriend = friendIds.includes(profile.id)
+                  {people.map((profile) => {
+                    const isFriend = friends.some((f) => f.userId === profile.userId)
+                    const birthday = isBirthdayToday(profile.birthdayMonth, profile.birthdayDay)
                     return (
-                      <article className="friend-result" key={profile.id}>
+                      <article className="friend-result" key={profile.userId}>
                         <div className="friend-avatar-wrap">
-                          {profile.isBirthday && <BirthdayCrown />}
-                          <Avatar hair={profile.hair} size="sm" />
+                          {birthday && <BirthdayCrown />}
+                          <Avatar choice={profile.avatar} manifest={manifest} size="sm" />
                         </div>
                         <div>
                           <h3>{profile.name}</h3>
                           <p>
                             @{profile.handle} · {profile.note}
-                            {profile.isBirthday && <strong> · birthday today</strong>}
+                            {birthday && <strong> · birthday today</strong>}
                           </p>
                         </div>
                         <button
                           className={isFriend ? 'added' : ''}
-                          onClick={() => toggleFriend(profile.id)}
+                          onClick={() => toggleFriend(profile)}
+                          aria-label={isFriend ? `Remove ${profile.name}` : `Add ${profile.name}`}
                         >
                           {isFriend ? 'Added ✓' : 'Add'}
                         </button>
@@ -465,43 +714,65 @@ function App() {
                 </div>
               </section>
             )}
-            {directoryStatus === 'ready' && friends.length === 0 && !friendSearchOpen && (
+            {sessionUser && friendsStatus === 'ready' && friends.length === 0 && !friendSearchOpen && (
               <div className="no-friends">
                 <p>Your circle is empty for now.</p>
                 <button onClick={() => setFriendSearchOpen(true)}>Find your first friend</button>
               </div>
             )}
+            {sessionUser && friendsStatus === 'error' && (
+              <p className="directory-message">Your friends couldn’t be loaded. Try refreshing.</p>
+            )}
             <div className="friend-grid">
-              {friends.map((f) => (
-                <button className="friend" key={f.id} onClick={() => setFriend(f.name)}>
-                  {f.isBirthday && <BirthdayCrown />}
-                  <Avatar hair={f.hair} size="lg" />
-                  <span className="scribble-circle" />
-                  <h3>{f.name}</h3>
-                  <p>{f.isBirthday ? `${f.note} · birthday today` : f.note}</p>
-                  <em>open their list →</em>
-                </button>
-              ))}
+              {friends.map((f) => {
+                const birthday = isBirthdayToday(f.birthdayMonth, f.birthdayDay)
+                return (
+                  <button className="friend" key={f.userId} onClick={() => openFriend(f)}>
+                    {birthday && <BirthdayCrown />}
+                    <Avatar choice={f.avatar} manifest={manifest} size="lg" />
+                    <span className="scribble-circle" />
+                    <h3>{f.name}</h3>
+                    <p>{birthday ? `${f.note} · birthday today` : f.note}</p>
+                    <em>open their list →</em>
+                  </button>
+                )
+              })}
             </div>
           </section>
         )}
 
-        {page === 'friends' && friend && (
+        {page === 'friends' && friendView && (
           <section className="page-section friend-list">
-            <button className="back-link" onClick={() => setFriend(null)}>
+            <button className="back-link" onClick={() => setFriendView(null)}>
               ← all friends
             </button>
             <p className="eyebrow">ideas for someone lovely</p>
-            <h1>{friend}’s Wish List</h1>
-            <p className="intro">Psst — reservations are private. {friend} won’t see a thing.</p>
+            <h1>{firstName(friendView.profile.name)}’s Wish List</h1>
+            <p className="intro">
+              Psst — reservations are private. {firstName(friendView.profile.name)} won’t see a
+              thing.
+            </p>
+            {friendView.status === 'loading' && (
+              <p className="directory-message">Opening their list…</p>
+            )}
+            {friendView.status === 'error' && (
+              <p className="directory-message">This list couldn’t be loaded.</p>
+            )}
+            {friendView.status === 'ready' && friendView.wishes.length === 0 && (
+              <div className="empty">
+                <Star />
+                <h2>Nothing here yet</h2>
+                <p>{firstName(friendView.profile.name)} hasn’t added any wishes yet.</p>
+              </div>
+            )}
             <WishGrid
-              items={wishes.slice(0, 6)}
-              onSelect={() => {}}
+              items={friendView.wishes}
+              onSelect={(w) => setFriendSelected(w.id)}
               friendMode
-              reserved={reserved}
-              onReserve={(id) =>
-                setReserved((r) => (r.includes(id) ? r.filter((x) => x !== id) : [...r, id]))
-              }
+              onReserve={(item) => {
+                const wish = friendView.wishes.find((w) => w.id === item.id)
+                if (wish) toggleReserve(wish)
+              }}
             />
           </section>
         )}
@@ -516,75 +787,71 @@ function App() {
               </div>
               <Star />
             </div>
-            <div className="savings-layout">
-              <div className="jar-wrap">
-                <svg className="jar" viewBox="0 0 330 430">
-                  <defs>
-                    <clipPath id="jarClip">
-                      <path d="M65 98q-20 26-25 62v180q2 55 58 62h134q56-7 58-62V160q-5-36-25-62Z" />
-                    </clipPath>
-                  </defs>
-                  <path
-                    className="jar-wash"
-                    clipPath="url(#jarClip)"
-                    d="M20 265q68-19 142 2c62 18 110-10 154-1v160H20Z"
-                  />
-                  <path
-                    className="jar-line"
-                    d="M83 28h164M78 39h174v52H78zM65 98q-20 26-25 62v180q2 55 58 62h134q56-7 58-62V160q-5-36-25-62M82 112c45 8 124 8 168 0"
-                  />
-                  <path className="jar-shine" d="M73 155v132" />
-                  <text x="165" y="205" textAnchor="middle">
-                    for lovely things
-                  </text>
-                  <Star className="jar-star" />
-                </svg>
-                <div className="jar-total">
-                  <strong>${wishes.reduce((total, wish) => total + (wish.saved || 0), 0)}</strong>
-                  <span>saved altogether</span>
+            {!sessionUser ? (
+              signInPrompt('Sign in to start saving for the things you love.')
+            ) : (
+              <div className="savings-layout">
+                <div className="jar-wrap">
+                  <svg
+                    className="jar"
+                    viewBox="0 0 330 430"
+                    role="img"
+                    aria-label={`Savings jar ${Math.round(jarRatio * 100)}% full`}
+                  >
+                    <defs>
+                      <clipPath id="jarClip">
+                        <path d="M65 98q-20 26-25 62v180q2 55 58 62h134q56-7 58-62V160q-5-36-25-62Z" />
+                      </clipPath>
+                    </defs>
+                    <g clipPath="url(#jarClip)">
+                      {/* The wash sits at y=265 in the drawing; slide it to match progress. */}
+                      <path
+                        className="jar-wash"
+                        style={{ transform: `translateY(${405 - 290 * jarRatio - 265}px)` }}
+                        d="M20 265q68-19 142 2c62 18 110-10 154-1v160H20Z"
+                      />
+                    </g>
+                    <path
+                      className="jar-line"
+                      d="M83 28h164M78 39h174v52H78zM65 98q-20 26-25 62v180q2 55 58 62h134q56-7 58-62V160q-5-36-25-62M82 112c45 8 124 8 168 0"
+                    />
+                    <path className="jar-shine" d="M73 155v132" />
+                    <text x="165" y="205" textAnchor="middle">
+                      for lovely things
+                    </text>
+                    <Star className="jar-star" />
+                  </svg>
+                  <div className="jar-total">
+                    <strong>${formatMoney(savedTotal)}</strong>
+                    <span>saved altogether</span>
+                  </div>
+                </div>
+                <div className="saving-list">
+                  <p className="hand-label">currently saving for...</p>
+                  {wishesStatus === 'ready' && jarWishes.length === 0 && (
+                    <p className="directory-message">
+                      Nothing in the jar yet. Open a wish and choose “Add to savings jar”.
+                    </p>
+                  )}
+                  {jarWishes.map((w) => (
+                    <SavingRow
+                      key={w.id}
+                      wish={w}
+                      number={wishes.indexOf(w) + 1}
+                      onDeposit={(amount) => deposit(w.id, amount)}
+                      onUpdate={(data) => updateWish(w.id, data)}
+                    />
+                  ))}
+                  <button className="outline-button" onClick={() => go('wishlist')}>
+                    Choose another wish
+                  </button>
                 </div>
               </div>
-              <div className="saving-list">
-                <p className="hand-label">currently saving for...</p>
-                {wishes
-                  .filter((w) => w.saved)
-                  .map((w) => (
-                    <div className="saving-row" key={w.id}>
-                      <Image src={w.image} alt="" width={95} height={95} />
-                      <div>
-                        <span className="item-no">0{w.id}</span>
-                        <h3>{w.name}</h3>
-                        <p>
-                          ${w.saved} of ${w.price} saved
-                        </p>
-                        <div className="progress">
-                          <i style={{ width: `${Math.min(100, (w.saved! / w.price) * 100)}%` }} />
-                        </div>
-                      </div>
-                      <button
-                        onClick={() =>
-                          setWishes((all) =>
-                            all.map((x) =>
-                              x.id === w.id
-                                ? { ...x, saved: Math.min(x.price, (x.saved || 0) + 10) }
-                                : x,
-                            ),
-                          )
-                        }
-                      >
-                        + $10
-                      </button>
-                    </div>
-                  ))}
-                <button className="outline-button" onClick={() => go('wishlist')}>
-                  Choose another wish
-                </button>
-              </div>
-            </div>
+            )}
           </section>
         )}
 
-        {page === 'avatar' && (
+        {page === 'avatar' && sessionUser && (
           <section className="page-section avatar-page">
             <div>
               <p className="eyebrow">make it look like you</p>
@@ -594,31 +861,25 @@ function App() {
             <div className="avatar-studio">
               <div className="preview-paper">
                 <Star />
-                <Avatar hair={hair} eyes={eyes} accessory={accessory} size="lg" />
-                <span>Claudia</span>
+                <Avatar choice={avatarDraft} manifest={manifest} size="lg" />
+                <span>{firstName(sessionUser.name)}</span>
                 <p>looking lovely!</p>
               </div>
               <div className="avatar-options">
-                <OptionGroup
-                  title="Hair"
-                  values={['waves', 'bob', 'bun', 'curls']}
-                  value={hair}
-                  onChange={setHair}
-                />
-                <OptionGroup
-                  title="Eyes"
-                  values={['sleepy', 'bright']}
-                  value={eyes}
-                  onChange={setEyes}
-                />
-                <OptionGroup
-                  title="Accessories"
-                  values={['none', 'glasses', 'earrings', 'bow']}
-                  value={accessory}
-                  onChange={setAccessory}
-                />
-                <button className="ink-button" onClick={() => go('wishlist')}>
-                  Save my portrait
+                {manifest.layers.map((layer) => (
+                  <OptionGroup
+                    key={layer.key}
+                    title={layer.label}
+                    options={[
+                      ...(layer.optional ? [{ value: 'none', label: 'none' }] : []),
+                      ...layer.options.map((o) => ({ value: o.key, label: o.label })),
+                    ]}
+                    value={normalizeAvatar(avatarDraft, manifest)[layer.key]}
+                    onChange={(value) => setAvatarDraft((d) => ({ ...d, [layer.key]: value }))}
+                  />
+                ))}
+                <button className="ink-button" onClick={saveAvatar} disabled={avatarSaving}>
+                  {avatarSaving ? 'Saving…' : 'Save my portrait'}
                 </button>
               </div>
             </div>
@@ -630,47 +891,74 @@ function App() {
         <p>List Your Wishes — made with love and blue ink.</p>
       </footer>
 
+      {notice && (
+        <p className="form-error app-notice" role="alert">
+          {notice}
+        </p>
+      )}
+
       {selected && (
         <ItemModal
           item={selected}
-          onClose={() => setSelected(null)}
-          onBought={() => {
-            toggleBought(selected.id)
-            setSelected({ ...selected, bought: !selected.bought })
-          }}
-          onSave={() => {
-            setWishes((ws) =>
-              ws.map((w) => (w.id === selected.id ? { ...w, saved: w.saved || 10 } : w)),
-            )
-            setSelected(null)
+          number={wishes.indexOf(selected) + 1}
+          onClose={() => setSelectedId(null)}
+          onBought={() => updateWish(selected.id, { bought: !selected.bought })}
+          onSave={async () => {
+            if (selected.savingsGoal === null) {
+              const updated = await updateWish(selected.id, { savingsGoal: selected.price })
+              if (!updated) return
+            }
+            setSelectedId(null)
             go('savings')
           }}
+          onEdit={() => {
+            setFormWish(selected)
+            setSelectedId(null)
+          }}
+          onDelete={() => deleteWish(selected.id)}
         />
       )}
-      {adding && (
-        <AddModal
-          onClose={() => setAdding(false)}
-          onAdd={(wish) => {
-            setWishes((w) => [
-              ...w,
-              { ...wish, id: w.length + 1, image: '/wishes/product-02.png', cutout: true },
-            ])
-            setAdding(false)
+      {friendView && friendSelected && (
+        <FriendItemModal
+          item={friendView.wishes.find((w) => w.id === friendSelected) ?? null}
+          number={friendView.wishes.findIndex((w) => w.id === friendSelected) + 1}
+          onClose={() => setFriendSelected(null)}
+          onReserve={(w) => toggleReserve(w)}
+        />
+      )}
+      {formWish && (
+        <WishFormModal
+          initial={formWish === 'new' ? null : formWish}
+          onClose={() => setFormWish(null)}
+          onSaved={(wish, created) => {
+            if (created) setWishes((all) => [...all, wish])
+            else replaceWish(wish)
+            setFormWish(null)
+          }}
+          onAuthError={() => {
+            setFormWish(null)
+            setSessionUser(null)
+            setAccountOpen(true)
           }}
         />
       )}
       {accountOpen && (
         <AccountModal
           user={sessionUser}
-          currentHair={hair}
+          manifest={manifest}
           onClose={() => setAccountOpen(false)}
           onAuthenticated={(user) => {
             setSessionUser(user)
-            setHair(user.hair)
+            setAvatarDraft(normalizeAvatar(user.avatar, manifest))
           }}
-          onLogout={() => setSessionUser(null)}
+          onLogout={() => {
+            setSessionUser(null)
+            setAccountOpen(false)
+            go('wishlist')
+          }}
           onCustomize={() => {
             setAccountOpen(false)
+            setAvatarDraft(normalizeAvatar(sessionUser?.avatar, manifest))
             go('avatar')
           }}
         />
@@ -679,18 +967,39 @@ function App() {
   )
 }
 
-function WishGrid({
+// ---------------------------------------------------------------- grid
+
+function WishImage({
+  photo,
+  alt,
+  sizes,
+  large = false,
+}: {
+  photo: Photo | null
+  alt: string
+  sizes: string
+  large?: boolean
+}) {
+  if (!photo) {
+    return (
+      <span className="no-photo">
+        <Star />
+      </span>
+    )
+  }
+  return <Image src={large ? photo.url : photo.cardUrl} alt={alt} fill sizes={sizes} unoptimized />
+}
+
+function WishGrid<T extends GridItem>({
   items,
   onSelect,
   friendMode = false,
-  reserved = [],
   onReserve,
 }: {
-  items: Wish[]
-  onSelect: (w: Wish) => void
+  items: T[]
+  onSelect: (w: T) => void
   friendMode?: boolean
-  reserved?: number[]
-  onReserve?: (id: number) => void
+  onReserve?: (w: T) => void
 }) {
   return (
     <section className="wish-grid">
@@ -699,14 +1008,14 @@ function WishGrid({
           className={`wish-item offset-${i % 4} ${item.bought && !friendMode ? 'bought' : ''}`}
           key={item.id}
         >
-          <span className="item-no">{String(i + 1).padStart(2, '0')}</span>
+          <span className="item-no">{pad(i + 1)}</span>
           <button
-            className={`product-image ${item.cutout ? 'cutout' : ''}`}
+            className={`product-image ${item.photo?.cutout ? 'cutout' : ''}`}
             onClick={() => onSelect(item)}
             aria-label={`View ${item.name}`}
           >
             <span className="watercolor" />
-            <Image src={item.image} alt={item.name} fill sizes="(max-width: 800px) 46vw, 300px" />
+            <WishImage photo={item.photo} alt={item.name} sizes="(max-width: 800px) 46vw, 300px" />
             {item.bought && !friendMode && (
               <span className="got-it">
                 <i />
@@ -718,7 +1027,13 @@ function WishGrid({
             <div>
               <h3>{item.name}</h3>
               <p>
-                ${item.price} <span>·</span> {item.store}
+                ${formatMoney(item.price)}
+                {item.store && (
+                  <>
+                    {' '}
+                    <span>·</span> {item.store}
+                  </>
+                )}
               </p>
             </div>
             <div className="hearts">
@@ -728,18 +1043,28 @@ function WishGrid({
             </div>
           </div>
           {friendMode && (
-            <button
-              className={`reserve ${reserved.includes(item.id) ? 'is-reserved' : ''}`}
-              onClick={() => onReserve?.(item.id)}
-            >
-              {reserved.includes(item.id) ? '✓ reserved by you' : 'I’ll get this'}
-            </button>
+            <ReserveButton item={item} onReserve={() => onReserve?.(item)} />
           )}
         </article>
       ))}
     </section>
   )
 }
+
+function ReserveButton({ item, onReserve }: { item: GridItem; onReserve: () => void }) {
+  const takenByOther = Boolean(item.taken && !item.reservedByMe)
+  return (
+    <button
+      className={`reserve ${item.reservedByMe ? 'is-reserved' : ''} ${takenByOther ? 'is-taken' : ''}`}
+      onClick={onReserve}
+      disabled={takenByOther}
+    >
+      {item.reservedByMe ? '✓ reserved by you' : takenByOther ? 'someone’s got this' : 'I’ll get this'}
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------- modals
 
 function ModalFrame({
   children,
@@ -750,6 +1075,11 @@ function ModalFrame({
   onClose: () => void
   label: string
 }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div
       className="modal-backdrop"
@@ -770,95 +1100,230 @@ function ModalFrame({
   )
 }
 
+function DetailTop({ item }: { item: GridItem & Pick<MyWish, 'category' | 'url' | 'notes'> }) {
+  return (
+    <>
+      <p className="eyebrow">
+        {item.category} · {HEART_WORDS[item.hearts]}-heart wish
+      </p>
+      <h2>{item.name}</h2>
+      <div className="detail-hearts">
+        {[0, 1, 2].map((n) => (
+          <Heart key={n} filled={n < item.hearts} />
+        ))}
+      </div>
+      <p className="price">${formatMoney(item.price)}</p>
+      {item.url && (
+        <a href={item.url} target="_blank" rel="noopener noreferrer nofollow">
+          Visit {item.store || 'the store'} ↗
+        </a>
+      )}
+      <p className="detail-note">{item.notes || DEFAULT_NOTE}</p>
+    </>
+  )
+}
+
+function DetailImage({ item, number }: { item: GridItem; number: number }) {
+  return (
+    <div className={`detail-image ${item.photo?.cutout ? 'cutout' : ''}`}>
+      <span className="watercolor" />
+      <WishImage photo={item.photo} alt={item.name} sizes="(max-width: 800px) 90vw, 500px" large />
+      <span className="detail-number">{pad(number)}</span>
+    </div>
+  )
+}
+
 function ItemModal({
   item,
+  number,
   onClose,
   onBought,
   onSave,
+  onEdit,
+  onDelete,
 }: {
-  item: Wish
+  item: MyWish
+  number: number
   onClose: () => void
   onBought: () => void
   onSave: () => void
+  onEdit: () => void
+  onDelete: () => void
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
   return (
     <ModalFrame onClose={onClose} label={item.name}>
       <div className="detail-modal">
-        <div className={`detail-image ${item.cutout ? 'cutout' : ''}`}>
-          <span className="watercolor" />
-          <Image src={item.image} alt={item.name} fill sizes="(max-width: 800px) 90vw, 500px" />
-          <span className="detail-number">0{item.id}</span>
-        </div>
+        <DetailImage item={item} number={number} />
         <div className="detail-copy">
-          <p className="eyebrow">{item.category} · three-heart wish</p>
-          <h2>{item.name}</h2>
-          <div className="detail-hearts">
-            {[0, 1, 2].map((n) => (
-              <Heart key={n} filled={n < item.hearts} />
-            ))}
-          </div>
-          <p className="price">${item.price}</p>
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            Visit {item.store} ↗
-          </a>
-          <p className="detail-note">
-            The sort of thing that makes even an ordinary Tuesday feel special.
-          </p>
+          <DetailTop item={item} />
           <label className="bought-check">
-            <input type="checkbox" checked={!!item.bought} onChange={onBought} />
+            <input type="checkbox" checked={item.bought} onChange={onBought} />
             <span>{item.bought ? 'Yes, I got it!' : 'I bought it!'}</span>
           </label>
-          <button className="ink-button" onClick={onSave}>
-            Add to savings jar
-          </button>
+          {!item.bought && (
+            <button className="ink-button" onClick={onSave}>
+              {item.savingsGoal === null ? 'Add to savings jar' : 'Open the savings jar'}
+            </button>
+          )}
+          <div className="detail-actions">
+            <button className="text-button" onClick={onEdit}>
+              Edit this wish
+            </button>
+            <button
+              className="text-button danger"
+              onClick={() => (confirmDelete ? onDelete() : setConfirmDelete(true))}
+              onBlur={() => setConfirmDelete(false)}
+            >
+              {confirmDelete ? 'Really delete? Tap again' : 'Delete'}
+            </button>
+          </div>
         </div>
       </div>
     </ModalFrame>
   )
 }
 
-function AddModal({
+function FriendItemModal({
+  item,
+  number,
   onClose,
-  onAdd,
+  onReserve,
 }: {
+  item: FriendWish | null
+  number: number
   onClose: () => void
-  onAdd: (wish: Omit<Wish, 'id' | 'image'>) => void
+  onReserve: (w: FriendWish) => void
 }) {
-  const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
-  const [store, setStore] = useState('')
-  const [category, setCategory] = useState('Other')
-  const [hearts, setHearts] = useState(3)
+  if (!item) return null
   return (
-    <ModalFrame onClose={onClose} label="Add a wish">
-      <form
-        className="add-modal"
-        onSubmit={(e) => {
-          e.preventDefault()
-          onAdd({
-            name: name || 'A lovely new wish',
-            price: Number(price) || 75,
-            store: store || 'Somewhere lovely',
-            category,
-            hearts,
-          })
-        }}
-      >
+    <ModalFrame onClose={onClose} label={item.name}>
+      <div className="detail-modal">
+        <DetailImage item={item} number={number} />
+        <div className="detail-copy">
+          <DetailTop item={item} />
+          <ReserveButton item={item} onReserve={() => onReserve(item)} />
+        </div>
+      </div>
+    </ModalFrame>
+  )
+}
+
+function WishFormModal({
+  initial,
+  onClose,
+  onSaved,
+  onAuthError,
+}: {
+  initial: MyWish | null
+  onClose: () => void
+  onSaved: (wish: MyWish, created: boolean) => void
+  onAuthError: () => void
+}) {
+  const [url, setUrl] = useState(initial?.url ?? '')
+  const [name, setName] = useState(initial?.name ?? '')
+  const [price, setPrice] = useState(initial ? String(initial.price) : '')
+  const [store, setStore] = useState(initial?.store ?? '')
+  const [category, setCategory] = useState<Category>(initial?.category ?? 'Other')
+  const [hearts, setHearts] = useState(initial?.hearts ?? 3)
+  const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [photo, setPhoto] = useState<Photo | null>(initial?.photo ?? null)
+  const [photoStatus, setPhotoStatus] = useState<'idle' | 'uploading'>('idle')
+  const [status, setStatus] = useState<'idle' | 'submitting'>('idle')
+  const [error, setError] = useState('')
+
+  const fail = (e: unknown) => {
+    if (e instanceof ApiError && e.status === 401) onAuthError()
+    else setError(message(e))
+  }
+
+  const choosePhoto = async (file: File | undefined) => {
+    if (!file) return
+    setError('')
+    setPhotoStatus('uploading')
+    try {
+      const blob = await shrinkPhoto(file)
+      const form = new FormData()
+      form.append('file', blob, file.name)
+      form.append('alt', name || 'Wish photo')
+      const result = await api<{ photo: Photo }>('/api/app/photos', { method: 'POST', body: form })
+      setPhoto(result.photo)
+    } catch (e) {
+      fail(e)
+    } finally {
+      setPhotoStatus('idle')
+    }
+  }
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (photoStatus === 'uploading') return
+    setStatus('submitting')
+    setError('')
+    const data = {
+      name,
+      price,
+      store,
+      url,
+      category,
+      hearts,
+      notes,
+      photo: photo?.id ?? null,
+    }
+    try {
+      const { wish } = initial
+        ? await api<{ wish: MyWish }>(`/api/app/wishes/${initial.id}`, { method: 'PATCH', json: data })
+        : await api<{ wish: MyWish }>('/api/app/wishes', { method: 'POST', json: data })
+      onSaved(wish, !initial)
+    } catch (e) {
+      fail(e)
+    } finally {
+      setStatus('idle')
+    }
+  }
+
+  return (
+    <ModalFrame onClose={onClose} label={initial ? 'Edit wish' : 'Add a wish'}>
+      <form className="add-modal" onSubmit={submit}>
         <div className="modal-heading">
           <Star />
-          <p className="eyebrow">put it out into the universe</p>
-          <h2>Add a Wish</h2>
+          <p className="eyebrow">{initial ? 'a little touch-up' : 'put it out into the universe'}</p>
+          <h2>{initial ? 'Edit Wish' : 'Add a Wish'}</h2>
           <p>Paste a link, or fill in the little details yourself.</p>
         </div>
         <label>
           <span>Link</span>
-          <input placeholder="https://..." />
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://..."
+            inputMode="url"
+          />
         </label>
-        <div className="add-photo">
-          <span>＋</span>
-          <p>add a photo</p>
-          <small>drag or browse</small>
-        </div>
+        <label className={`add-photo ${photoStatus === 'uploading' ? 'busy' : ''}`}>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+            onChange={(e) => {
+              choosePhoto(e.target.files?.[0])
+              e.target.value = ''
+            }}
+            disabled={photoStatus === 'uploading'}
+            aria-label="Add a photo"
+          />
+          {photo ? (
+            <>
+              <img src={photo.cardUrl} alt="" />
+              <small>{photoStatus === 'uploading' ? 'cutting it out…' : 'tap to change'}</small>
+            </>
+          ) : (
+            <>
+              <span>＋</span>
+              <p>{photoStatus === 'uploading' ? 'cutting it out…' : 'add a photo'}</p>
+              <small>drag or browse</small>
+            </>
+          )}
+        </label>
         <div className="form-grid">
           <label>
             <span>Name</span>
@@ -866,6 +1331,8 @@ function AddModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="What are you wishing for?"
+              maxLength={120}
+              required
             />
           </label>
           <label>
@@ -875,6 +1342,7 @@ function AddModal({
               onChange={(e) => setPrice(e.target.value)}
               placeholder="$ 0.00"
               inputMode="decimal"
+              required
             />
           </label>
           <label>
@@ -883,50 +1351,171 @@ function AddModal({
               value={store}
               onChange={(e) => setStore(e.target.value)}
               placeholder="Where did you find it?"
+              maxLength={80}
             />
           </label>
           <label>
             <span>Category</span>
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {['Clothes', 'Shoes', 'Jewelry', 'Bags', 'Beauty', 'Other'].map((c) => (
+            <select value={category} onChange={(e) => setCategory(e.target.value as Category)}>
+              {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
           </label>
         </div>
+        <label className="wide-field">
+          <span>Notes</span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Size, colour, anything a gift-giver should know"
+            maxLength={1000}
+          />
+        </label>
         <div className="heart-picker">
           <span>How much do you want it?</span>
           <div>
             {[1, 2, 3].map((n) => (
-              <button type="button" key={n} onClick={() => setHearts(n)}>
+              <button type="button" key={n} onClick={() => setHearts(n)} aria-label={`${n} hearts`}>
                 <Heart filled={n <= hearts} />
               </button>
             ))}
           </div>
         </div>
-        <button className="ink-button" type="submit">
-          Add to my wishes
+        {error && (
+          <p className="form-error wide-field" role="alert">
+            {error}
+          </p>
+        )}
+        <button
+          className="ink-button"
+          type="submit"
+          disabled={status === 'submitting' || photoStatus === 'uploading'}
+        >
+          {status === 'submitting' ? 'Just a moment…' : initial ? 'Save changes' : 'Add to my wishes'}
         </button>
       </form>
     </ModalFrame>
   )
 }
 
+function SavingRow({
+  wish,
+  number,
+  onDeposit,
+  onUpdate,
+}: {
+  wish: MyWish
+  number: number
+  onDeposit: (amount: number) => Promise<boolean>
+  onUpdate: (data: Partial<Pick<MyWish, 'savingsGoal' | 'saved'>>) => Promise<MyWish | null>
+}) {
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState('')
+  const [goal, setGoal] = useState(String(wish.savingsGoal ?? wish.price))
+  const [busy, setBusy] = useState(false)
+  const target = wish.savingsGoal ?? wish.price
+
+  const run = async (task: () => Promise<unknown>) => {
+    setBusy(true)
+    await task()
+    setBusy(false)
+  }
+
+  return (
+    <div className="saving-row">
+      {wish.photo ? (
+        <Image src={wish.photo.cardUrl} alt="" width={95} height={95} unoptimized />
+      ) : (
+        <span />
+      )}
+      <div>
+        <span className="item-no">{pad(number)}</span>
+        <h3>{wish.name}</h3>
+        <p>
+          ${formatMoney(wish.saved)} of ${formatMoney(target)} saved
+        </p>
+        <div className="progress">
+          <i style={{ width: `${target > 0 ? Math.min(100, (wish.saved / target) * 100) : 0}%` }} />
+        </div>
+        {!open && (
+          <button className="saving-edit-link" onClick={() => setOpen(true)}>
+            add a different amount · change goal
+          </button>
+        )}
+      </div>
+      <button onClick={() => run(() => onDeposit(10))} disabled={busy || wish.saved >= target}>
+        + $10
+      </button>
+      {open && (
+        <div className="saving-form">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const n = Number(amount.replace(/[$,\s]/g, ''))
+              if (!(n > 0)) return
+              run(async () => {
+                if (await onDeposit(n)) setAmount('')
+              })
+            }}
+          >
+            <label>
+              add $
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                inputMode="decimal"
+                placeholder="0"
+                aria-label="Amount to add"
+              />
+              <button disabled={busy}>put it in</button>
+            </label>
+          </form>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              run(() => onUpdate({ savingsGoal: Number(goal.replace(/[$,\s]/g, '')) }))
+            }}
+          >
+            <label>
+              goal $
+              <input
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                inputMode="decimal"
+                aria-label="Savings goal"
+              />
+              <button disabled={busy}>save goal</button>
+            </label>
+          </form>
+          <button className="text-button" onClick={() => run(() => onUpdate({ savingsGoal: null, saved: 0 }))}>
+            take it out of the jar
+          </button>
+          <button className="text-button" onClick={() => setOpen(false)}>
+            done
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AccountModal({
   user,
-  currentHair,
+  manifest,
   onClose,
   onAuthenticated,
   onLogout,
   onCustomize,
 }: {
-  user: AppSessionUser | null
-  currentHair: string
+  user: SessionUser | null
+  manifest: AvatarManifest
   onClose: () => void
-  onAuthenticated: (user: AppSessionUser) => void
+  onAuthenticated: (user: SessionUser) => void
   onLogout: () => void
   onCustomize: () => void
 }) {
+  const hairLayer = manifest.layers.find((l) => l.key === 'hair')
   const [mode, setMode] = useState<'login' | 'signup'>('signup')
   const [status, setStatus] = useState<'idle' | 'submitting'>('idle')
   const [error, setError] = useState('')
@@ -935,28 +1524,26 @@ function AccountModal({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [birthday, setBirthday] = useState('')
-  const [signupHair, setSignupHair] = useState(currentHair)
+  const [signupHair, setSignupHair] = useState(hairLayer?.options[0]?.key ?? '')
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setStatus('submitting')
     setError('')
-
     try {
-      const response = await fetch(`/api/app-auth/${mode === 'signup' ? 'signup' : 'login'}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          mode === 'signup'
-            ? { name, handle, email, password, birthday, hair: signupHair }
-            : { email, password },
-        ),
-      })
-      const result = (await response.json()) as { user?: AppSessionUser; error?: string }
-      if (!response.ok || !result.user) throw new Error(result.error || 'Please try again.')
+      const result = await api<{ user: SessionUser }>(
+        `/api/app/auth/${mode === 'signup' ? 'signup' : 'login'}`,
+        {
+          method: 'POST',
+          json:
+            mode === 'signup'
+              ? { name, handle, email, password, birthday, hair: signupHair }
+              : { email, password },
+        },
+      )
       onAuthenticated(result.user)
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : 'Please try again.')
+      setError(message(submissionError))
     } finally {
       setStatus('idle')
     }
@@ -966,11 +1553,10 @@ function AccountModal({
     setStatus('submitting')
     setError('')
     try {
-      const response = await fetch('/api/app-auth/logout', { method: 'POST' })
-      if (!response.ok) throw new Error('Could not sign out. Please try again.')
+      await api('/api/app/auth/logout', { method: 'POST' })
       onLogout()
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : 'Please try again.')
+      setError(message(submissionError))
     } finally {
       setStatus('idle')
     }
@@ -980,9 +1566,9 @@ function AccountModal({
     <ModalFrame onClose={onClose} label={user ? 'Your account' : 'Sign in or create an account'}>
       {user ? (
         <div className="account-signed-in">
-          <Avatar hair={currentHair} size="lg" />
+          <Avatar choice={user.avatar} manifest={manifest} size="lg" />
           <p className="eyebrow">your little corner</p>
-          <h2>Welcome back, {user.name}</h2>
+          <h2>Welcome back, {firstName(user.name)}</h2>
           <p className="account-handle">@{user.handle}</p>
           <p>Your wishes and birthday details are tucked safely into your account.</p>
           {error && (
@@ -1020,6 +1606,8 @@ function AccountModal({
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   autoComplete="name"
+                  minLength={2}
+                  maxLength={80}
                   required
                 />
               </label>
@@ -1032,6 +1620,7 @@ function AccountModal({
                     onChange={(event) => setHandle(event.target.value)}
                     autoComplete="username"
                     pattern="[A-Za-z0-9._]{3,30}"
+                    title="3–30 letters, numbers, dots or underscores"
                     required
                   />
                 </div>
@@ -1069,25 +1658,29 @@ function AccountModal({
                   type="date"
                   value={birthday}
                   onChange={(event) => setBirthday(event.target.value)}
+                  min="1900-01-01"
+                  max={new Date().toISOString().slice(0, 10)}
                   required
                 />
                 <small>Your birth year stays private.</small>
               </label>
-              <fieldset className="account-hair">
-                <legend>Portrait hair</legend>
-                <div>
-                  {['waves', 'bob', 'bun', 'curls'].map((option) => (
-                    <button
-                      type="button"
-                      className={signupHair === option ? 'selected' : ''}
-                      onClick={() => setSignupHair(option)}
-                      key={option}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+              {hairLayer && (
+                <fieldset className="account-hair">
+                  <legend>Portrait hair</legend>
+                  <div>
+                    {hairLayer.options.map((option) => (
+                      <button
+                        type="button"
+                        className={signupHair === option.key ? 'selected' : ''}
+                        onClick={() => setSignupHair(option.key)}
+                        key={option.key}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
             </>
           )}
 
@@ -1121,12 +1714,12 @@ function AccountModal({
 
 function OptionGroup({
   title,
-  values,
+  options,
   value,
   onChange,
 }: {
   title: string
-  values: string[]
+  options: { value: string; label: string }[]
   value: string
   onChange: (v: string) => void
 }) {
@@ -1134,14 +1727,16 @@ function OptionGroup({
     <div className="option-group">
       <p>{title}</p>
       <div>
-        {values.map((v) => (
-          <button key={v} className={value === v ? 'selected' : ''} onClick={() => onChange(v)}>
-            {v}
+        {options.map((o) => (
+          <button
+            key={o.value}
+            className={value === o.value ? 'selected' : ''}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
           </button>
         ))}
       </div>
     </div>
   )
 }
-
-export default App

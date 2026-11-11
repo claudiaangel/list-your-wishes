@@ -60,18 +60,6 @@ export type SupportedTimezones =
   | 'Pacific/Noumea'
   | 'Pacific/Auckland'
   | 'Pacific/Fiji';
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_3DE324E4".
- */
-export type LexicalNodes_3DE324E4 =
-  | SerializedTextNode
-  | SerializedTabNode
-  | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_3DE324E4>
-  | SerializedListNode<LexicalNodes_3DE324E4>
-  | SerializedListItemNode<LexicalNodes_3DE324E4>
-  | SerializedHeadingNode<LexicalNodes_3DE324E4, 'h2' | 'h3' | 'h4'>;
 
 export interface Config {
   auth: {
@@ -81,44 +69,40 @@ export interface Config {
   blocks: {};
   collections: {
     admins: Admin;
-    media: Media;
-    folders: Folder;
-    tags: Tag;
-    'friend-profiles': FriendProfile;
     users: User;
+    profiles: Profile;
+    wishes: Wish;
+    media: Media;
+    friendships: Friendship;
+    reservations: Reservation;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
-    'payload-llm-instructions': PayloadLlmInstruction;
   };
   collectionsJoins: {};
   collectionsSelect: {
     admins: AdminsSelect<false> | AdminsSelect<true>;
-    media: MediaSelect<false> | MediaSelect<true>;
-    folders: FoldersSelect<false> | FoldersSelect<true>;
-    tags: TagsSelect<false> | TagsSelect<true>;
-    'friend-profiles': FriendProfilesSelect<false> | FriendProfilesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    profiles: ProfilesSelect<false> | ProfilesSelect<true>;
+    wishes: WishesSelect<false> | WishesSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    friendships: FriendshipsSelect<false> | FriendshipsSelect<true>;
+    reservations: ReservationsSelect<false> | ReservationsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
-    'payload-llm-instructions': PayloadLlmInstructionsSelect<false> | PayloadLlmInstructionsSelect<true>;
   };
   db: {
     defaultIDType: string;
   };
-  fallbackLocale: ('false' | 'none' | 'null') | false | null | 'en' | 'en'[];
+  fallbackLocale: null;
   globals: {};
   globalsSelect: {};
-  locale: 'en';
+  locale: null;
   widgets: {
-    welcome: WelcomeWidget;
     collections: CollectionsWidget;
-    'collection-query': CollectionQueryWidget;
-    activity: ActivityWidget;
-    'upload-dropzone': UploadDropzoneWidget;
   };
   user: Admin | User;
   jobs: {
@@ -168,31 +152,24 @@ export interface UserAuthOperations {
  */
 export interface Admin {
   id: string;
-  figmaHandle?: string | null;
-  figmaImageUrl?: string | null;
-  userGroups?: string[] | null;
-  makePermission?: ('view' | 'edit') | null;
-  email?: string | null;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
   updatedAt: string;
   createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  resetPasswordRequestedAt?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
   collection: 'admins';
 }
 /**
@@ -202,31 +179,28 @@ export interface Admin {
 export interface User {
   id: string;
   name: string;
+  /**
+   * Public @username, without the @.
+   */
   handle: string;
   /**
-   * Private. Only the month and day are copied to the public profile.
+   * Private. Only month and day are copied to the public profile.
    */
   birthday: string;
-  hair: 'waves' | 'bob' | 'bun' | 'curls';
+  /**
+   * Chosen avatar part for each layer, e.g. {"hair": "waves"}.
+   */
+  avatar?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  intro?: string | null;
   note?: string | null;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -249,33 +223,64 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "profiles".
+ */
+export interface Profile {
+  id: string;
+  user: string | User;
+  name: string;
+  handle: string;
+  note?: string | null;
+  avatar?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  birthdayMonth?: number | null;
+  birthdayDay?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wishes".
+ */
+export interface Wish {
+  id: string;
+  owner: string | User;
+  name: string;
+  price: number;
+  store?: string | null;
+  url?: string | null;
+  category: 'Clothes' | 'Shoes' | 'Jewelry' | 'Bags' | 'Beauty' | 'Other';
+  hearts: number;
+  notes?: string | null;
+  photo?: (string | null) | Media;
+  bought?: boolean | null;
+  /**
+   * Set when the wish is in the savings jar.
+   */
+  savingsGoal?: number | null;
+  saved?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
   id: string;
   alt: string;
-  _h_folders?: (string | null) | Folder;
-  _h_tags?: (string | Tag)[] | null;
-  prefix?: string | null;
-  _objectKey?: string | null;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
+  owner?: (string | null) | User;
+  /**
+   * True when the photo has a transparent background.
+   */
+  cutout?: boolean | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -285,122 +290,39 @@ export interface Media {
   filesize?: number | null;
   width?: number | null;
   height?: number | null;
-  original?: {
-    filename?: string | null;
-    url?: string | null;
-    mimeType?: string | null;
-    filesize?: number | null;
-    width?: number | null;
-    height?: number | null;
-    prefix?: string | null;
-    _objectKey?: string | null;
-  };
   focalX?: number | null;
   focalY?: number | null;
+  sizes?: {
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "folders".
+ * via the `definition` "friendships".
  */
-export interface Folder {
+export interface Friendship {
   id: string;
-  _h_folders?: (string | null) | Folder;
-  name: string;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
+  user: string | User;
+  friend: string | User;
   updatedAt: string;
   createdAt: string;
-  _h_slugPath?: string | null;
-  _h_titlePath?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags".
+ * via the `definition` "reservations".
  */
-export interface Tag {
+export interface Reservation {
   id: string;
-  _h_tags?: (string | null) | Tag;
-  name: string;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedAt: string;
-  createdAt: string;
-  _h_slugPath?: string | null;
-  _h_titlePath?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "friend-profiles".
- */
-export interface FriendProfile {
-  id: string;
-  name: string;
-  /**
-   * Public username without the @ symbol.
-   */
-  handle: string;
-  note: string;
-  hair: 'waves' | 'bob' | 'bun' | 'curls';
-  featured?: boolean | null;
-  /**
-   * Public month only; the birth year stays private.
-   */
-  birthdayMonth?: number | null;
-  /**
-   * Public day only; the birth year stays private.
-   */
-  birthdayDay?: number | null;
-  user?: (string | null) | User;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
+  wish: string | Wish;
+  reserver: string | User;
+  wishOwner?: (string | null) | User;
   updatedAt: string;
   createdAt: string;
 }
@@ -433,24 +355,28 @@ export interface PayloadLockedDocument {
         value: string | Admin;
       } | null)
     | ({
+        relationTo: 'users';
+        value: string | User;
+      } | null)
+    | ({
+        relationTo: 'profiles';
+        value: string | Profile;
+      } | null)
+    | ({
+        relationTo: 'wishes';
+        value: string | Wish;
+      } | null)
+    | ({
         relationTo: 'media';
         value: string | Media;
       } | null)
     | ({
-        relationTo: 'folders';
-        value: string | Folder;
+        relationTo: 'friendships';
+        value: string | Friendship;
       } | null)
     | ({
-        relationTo: 'tags';
-        value: string | Tag;
-      } | null)
-    | ({
-        relationTo: 'friend-profiles';
-        value: string | FriendProfile;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
+        relationTo: 'reservations';
+        value: string | Reservation;
       } | null);
   globalSlug?: string | null;
   user:
@@ -506,145 +432,9 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "payload-llm-instructions".
- */
-export interface PayloadLlmInstruction {
-  id: string;
-  entitySlug: string;
-  title?: string | null;
-  entityType: 'collection' | 'global';
-  additionalInstructions?: LexicalRichText<LexicalNodes_3DE324E4> | null;
-  systemInstructions?: LexicalRichText<LexicalNodes_3DE324E4> | null;
-  createdBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'admins';
-        value: string | Admin;
-      } | null)
-    | ({
-        relationTo: 'users';
-        value: string | User;
-      } | null);
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "admins_select".
  */
 export interface AdminsSelect<T extends boolean = true> {
-  figmaHandle?: T;
-  figmaImageUrl?: T;
-  userGroups?: T;
-  makePermission?: T;
-  email?: T;
-  createdBy?: T;
-  updatedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media_select".
- */
-export interface MediaSelect<T extends boolean = true> {
-  alt?: T;
-  _h_folders?: T;
-  _h_tags?: T;
-  prefix?: T;
-  _objectKey?: T;
-  createdBy?: T;
-  updatedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  url?: T;
-  thumbnailURL?: T;
-  filename?: T;
-  mimeType?: T;
-  filesize?: T;
-  width?: T;
-  height?: T;
-  original?:
-    | T
-    | {
-        filename?: T;
-        url?: T;
-        mimeType?: T;
-        filesize?: T;
-        width?: T;
-        height?: T;
-        prefix?: T;
-        _objectKey?: T;
-      };
-  focalX?: T;
-  focalY?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "folders_select".
- */
-export interface FoldersSelect<T extends boolean = true> {
-  _h_folders?: T;
-  name?: T;
-  createdBy?: T;
-  updatedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  _h_slugPath?: T;
-  _h_titlePath?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags_select".
- */
-export interface TagsSelect<T extends boolean = true> {
-  _h_tags?: T;
-  name?: T;
-  createdBy?: T;
-  updatedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  _h_slugPath?: T;
-  _h_titlePath?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "friend-profiles_select".
- */
-export interface FriendProfilesSelect<T extends boolean = true> {
-  name?: T;
-  handle?: T;
-  note?: T;
-  hair?: T;
-  featured?: T;
-  birthdayMonth?: T;
-  birthdayDay?: T;
-  user?: T;
-  createdBy?: T;
-  updatedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users_select".
- */
-export interface UsersSelect<T extends boolean = true> {
-  name?: T;
-  handle?: T;
-  birthday?: T;
-  hair?: T;
-  note?: T;
-  createdBy?: T;
-  updatedBy?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -662,6 +452,125 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users_select".
+ */
+export interface UsersSelect<T extends boolean = true> {
+  name?: T;
+  handle?: T;
+  birthday?: T;
+  avatar?: T;
+  intro?: T;
+  note?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  resetPasswordRequestedAt?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
+  sessions?:
+    | T
+    | {
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "profiles_select".
+ */
+export interface ProfilesSelect<T extends boolean = true> {
+  user?: T;
+  name?: T;
+  handle?: T;
+  note?: T;
+  avatar?: T;
+  birthdayMonth?: T;
+  birthdayDay?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wishes_select".
+ */
+export interface WishesSelect<T extends boolean = true> {
+  owner?: T;
+  name?: T;
+  price?: T;
+  store?: T;
+  url?: T;
+  category?: T;
+  hearts?: T;
+  notes?: T;
+  photo?: T;
+  bought?: T;
+  savingsGoal?: T;
+  saved?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  owner?: T;
+  cutout?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+  sizes?:
+    | T
+    | {
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "friendships_select".
+ */
+export interface FriendshipsSelect<T extends boolean = true> {
+  user?: T;
+  friend?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reservations_select".
+ */
+export interface ReservationsSelect<T extends boolean = true> {
+  wish?: T;
+  reserver?: T;
+  wishOwner?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -705,32 +614,6 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "payload-llm-instructions_select".
- */
-export interface PayloadLlmInstructionsSelect<T extends boolean = true> {
-  id?: T;
-  entitySlug?: T;
-  title?: T;
-  entityType?: T;
-  additionalInstructions?: T;
-  systemInstructions?: T;
-  createdBy?: T;
-  updatedBy?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "welcome_widget".
- */
-export interface WelcomeWidget {
-  data?: {
-    [k: string]: unknown;
-  };
-  width: 'full';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "collections_widget".
  */
 export interface CollectionsWidget {
@@ -741,139 +624,10 @@ export interface CollectionsWidget {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "collection-query_widget".
- */
-export interface CollectionQueryWidget {
-  data?: {
-    title?: string | null;
-    relatedCollection: 'admins' | 'media' | 'folders' | 'tags' | 'friend-profiles';
-    where?:
-      | {
-          [k: string]: unknown;
-        }
-      | unknown[]
-      | string
-      | number
-      | boolean
-      | null;
-    sortField?: string | null;
-    sortDirection?: ('asc' | 'desc') | null;
-    limit?: number | null;
-  };
-  width: 'x-small' | 'small' | 'medium' | 'large' | 'x-large' | 'full';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "activity_widget".
- */
-export interface ActivityWidget {
-  data?: {
-    excludedCollections?: ('admins' | 'media' | 'folders' | 'tags' | 'friend-profiles')[] | null;
-  };
-  width: 'small' | 'medium' | 'large' | 'x-large' | 'full';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "upload-dropzone_widget".
- */
-export interface UploadDropzoneWidget {
-  data?: {
-    excludedCollections?: 'media'[] | null;
-  };
-  width: 'x-small' | 'small' | 'medium' | 'large' | 'x-large' | 'full';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "auth".
  */
 export interface Auth {
   [k: string]: unknown;
-}
-
-/** @internal Core Lexical types — see @payloadcms/richtext-lexical. */
-export type LexicalElementFormat = 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-export type LexicalElementDirection = ('ltr' | 'rtl') | null;
-
-export interface SerializedLexicalElementBase<TChildren> {
-  children: TChildren[];
-  direction: LexicalElementDirection;
-  format: LexicalElementFormat;
-  indent: number;
-  textFormat?: number;
-  textStyle?: string;
-  /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
-  version: number;
-}
-
-export type LexicalTextMode = 'normal' | 'token' | 'segmented';
-
-export interface SerializedTextNode {
-  type: 'text';
-  detail: number;
-  format: number;
-  mode: LexicalTextMode;
-  style: string;
-  text: string;
-  /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
-  version: number;
-}
-
-export interface SerializedTabNode {
-  type: 'tab';
-  detail: number;
-  format: number;
-  mode: LexicalTextMode;
-  style: string;
-  text: string;
-  /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
-  version: number;
-}
-
-export interface SerializedLineBreakNode {
-  type: 'linebreak';
-  /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
-  version: number;
-}
-
-export interface SerializedParagraphNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
-  type: 'paragraph';
-  textFormat: number;
-  textStyle: string;
-}
-
-export interface SerializedListNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
-  type: 'list';
-  checked?: boolean;
-  listType: 'number' | 'bullet' | 'check';
-  start: number;
-  tag: 'ul' | 'ol';
-}
-
-export interface SerializedListItemNode<TChildren> extends SerializedLexicalElementBase<TChildren> {
-  type: 'listitem';
-  checked?: boolean;
-  value: number;
-}
-
-export interface SerializedHeadingNode<
-  TChildren,
-  TTag extends 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
-> extends SerializedLexicalElementBase<TChildren> {
-  type: 'heading';
-  tag: TTag;
-}
-
-/** Shape of a Lexical `richText` field. */
-export interface LexicalRichText<TNode> {
-  root: {
-    children: TNode[];
-    direction: LexicalElementDirection;
-    format: LexicalElementFormat;
-    indent: number;
-    type: 'root';
-    /** @deprecated Ignored when loading. Typed as required only to match Lexical's types: rich text sent through the API, CLI or MCP may not contain it. */
-    version: number;
-  };
 }
 
 
