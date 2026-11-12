@@ -13,11 +13,15 @@ public/avatars/
   04-accessory/bow.svg
 ```
 
-- The first layer is the base and is always shown. Every other layer also gets a "none" choice.
+- Every layer is always shown, except layers named `accessory` (or `extra` / `optional`),
+  which also get a "none" choice.
 - Draw every part on the **same canvas size** (square works best, e.g. 600×600) and
   in the right position, so the layers line up when stacked.
-- File names become the option names (`big-curls.png` shows as "big curls").
+- File names become the option names (`big-curls.png` shows as "big curls"). A number in front
+  (`1-long.webp`) only sets the order; the first option is the default.
 - In development, new files appear after a page refresh. Production picks them up on the next deploy.
 - If a layer is called `hair`, its options are also offered on the sign-up form.
 
 Until any drawings are here, the app uses the built-in hand-drawn SVG avatar.
+
+The current parts are 600×600 transparent WebP in cobalt ink, all on the same canvas.

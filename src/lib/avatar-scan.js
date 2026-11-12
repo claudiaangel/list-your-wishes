@@ -4,9 +4,10 @@
 //   public/avatars/01-face/round.png      -> layer "face" (drawn first, always shown)
 //   public/avatars/02-hair/waves.png      -> layer "hair", option "waves"
 //   public/avatars/03-accessory/bow.svg   -> layer "accessory", option "bow"
+//   public/avatars/02-hair/1-long.png     -> option "long", listed first (first = default)
 //
-// The number sets the stacking order (lowest = bottom). The first layer is the
-// base and is always shown; every other layer also gets a "none" choice.
+// The number sets the stacking order (lowest = bottom). Every layer is always
+// shown, except accessory/extra layers, which also get a "none" choice.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -46,7 +47,8 @@ export function scanAvatarParts(root) {
       .filter((file) => IMAGE.test(file) && !file.startsWith('.'))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
       .map((file) => {
-        const base = file.replace(IMAGE, '')
+        // "2-big-curls.png": the number only sets the order
+        const base = file.replace(IMAGE, '').replace(/^\d+[-_ ]*/, '')
         return {
           key: slug(base),
           label: label(base),
@@ -55,7 +57,8 @@ export function scanAvatarParts(root) {
       })
       .filter((option) => option.key && option.key !== 'none')
     if (!options.length) continue
-    layers.push({ key: slug(name), label: label(name), optional: layers.length > 0, options })
+    const optional = /accessor|extra|optional/i.test(name)
+    layers.push({ key: slug(name), label: label(name), optional, options })
   }
   return { kind: 'files', layers }
 }
