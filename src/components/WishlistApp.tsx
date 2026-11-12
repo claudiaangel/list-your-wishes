@@ -1978,6 +1978,7 @@ function BannerModal({
   const [textColor, setTextColor] = useState(user.bannerTextColor)
   const [shape, setShape] = useState<BannerShape>(user.bannerShape)
   const [intro, setIntro] = useState(user.intro || DEFAULT_INTRO)
+  const [name, setName] = useState(user.name)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const look = bannerStyle(color, textColor)
@@ -1990,7 +1991,13 @@ function BannerModal({
       const text = intro.trim()
       const { user: updated } = await api<{ user: SessionUser }>('/api/app/me', {
         method: 'PATCH',
-        json: { bannerColor: color, bannerTextColor: textColor, bannerShape: shape, intro: text === DEFAULT_INTRO ? '' : text },
+        json: {
+          name: name.trim(),
+          bannerColor: color,
+          bannerTextColor: textColor,
+          bannerShape: shape,
+          intro: text === DEFAULT_INTRO ? '' : text,
+        },
       })
       onSaved(updated)
     } catch (e) {
@@ -2012,7 +2019,7 @@ function BannerModal({
 
         <div className={`banner-preview ${look.className}`} style={look.style} aria-hidden="true">
           <BannerDecor shape={shape} light={look.light} />
-          <strong>{firstName(user.name)}’s Wish List</strong>
+          <strong>{firstName(name.trim() || user.name)}’s Wish List</strong>
           <span>{intro.trim() || DEFAULT_INTRO}</span>
         </div>
 
@@ -2061,6 +2068,11 @@ function BannerModal({
             ))}
           </div>
         </fieldset>
+
+        <label className="wide-field">
+          <span>Your name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required minLength={2} />
+        </label>
 
         <label className="wide-field">
           <span>Words under your name</span>
