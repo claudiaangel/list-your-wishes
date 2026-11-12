@@ -2160,3 +2160,9 @@ footer p {
   outline: 2px solid #1e2bb8;
   outline-offset: 2px;
 }
+
+/* A friend's banner on their wish list */
+.friend-hero {
+  margin-top: 28px;
+  margin-bottom: 36px;
+}

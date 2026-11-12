@@ -105,6 +105,17 @@ export type PublicProfile = {
   isFriend?: boolean
 }
 
+/** A friend's wish list banner (sent only to people who added them). */
+export type FriendBanner = {
+  color: string
+  /** '' = automatic */
+  textColor: string
+  shape: BannerShape
+  /** '' = plain colour */
+  image: string
+  intro: string
+}
+
 /** Birthday check in the viewer's own time zone. Feb 29 birthdays show on Feb 28 in other years. */
 export function isBirthdayToday(month: number | null, day: number | null, now = new Date()) {
   if (!month || !day) return false

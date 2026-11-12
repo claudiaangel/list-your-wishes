@@ -7,6 +7,7 @@ import {
   normalizeAvatar,
   type AvatarChoice,
   type AvatarManifest,
+  type FriendBanner,
   type FriendWish,
   type MyWish,
   type Photo,
@@ -267,6 +268,18 @@ function BannerDecor({ shape, light }: { shape: BannerShape; light: boolean }) {
   )
 }
 
+/** A friend's banner, as they set it up (read-only). */
+function FriendHero({ name, banner }: { name: string; banner: FriendBanner }) {
+  const look = bannerStyle(banner.color, banner.textColor, banner.image)
+  return (
+    <section className={`hero friend-hero ${look.className}`} style={look.style}>
+      <BannerDecor shape={banner.shape} light={look.light} />
+      <h1>{firstName(name)}’s Wish List</h1>
+      <p className="intro">{banner.intro || DEFAULT_INTRO}</p>
+    </section>
+  )
+}
+
 function PenIcon() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -448,6 +461,7 @@ export default function App({
   const [friendView, setFriendView] = useState<{
     profile: PublicProfile
     wishes: FriendWish[]
+    banner?: FriendBanner
     status: Status
   } | null>(null)
   const [friendSelected, setFriendSelected] = useState<string | null>(null)
@@ -634,7 +648,7 @@ export default function App({
     setFriendView({ profile, wishes: [], status: 'loading' })
     window.scrollTo({ top: 0, behavior: 'smooth' })
     try {
-      const result = await api<{ profile: PublicProfile; wishes: FriendWish[] }>(
+      const result = await api<{ profile: PublicProfile; wishes: FriendWish[]; banner: FriendBanner }>(
         `/api/app/friends/${profile.userId}/wishes`,
       )
       setFriendView({ ...result, status: 'ready' })
@@ -932,8 +946,14 @@ export default function App({
             <button className="back-link" onClick={() => setFriendView(null)}>
               ← all friends
             </button>
-            <p className="eyebrow">ideas for someone lovely</p>
-            <h1>{firstName(friendView.profile.name)}’s Wish List</h1>
+            {friendView.banner ? (
+              <FriendHero name={friendView.profile.name} banner={friendView.banner} />
+            ) : (
+              <>
+                <p className="eyebrow">ideas for someone lovely</p>
+                <h1>{firstName(friendView.profile.name)}’s Wish List</h1>
+              </>
+            )}
             {friendView.status === 'ready' && friendView.wishes.length === 0 ? (
               <p className="intro">No wishes yet.</p>
             ) : (
