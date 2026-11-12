@@ -740,7 +740,7 @@ export default function App({
         <button className="avatar-button" onClick={() => setAccountOpen(true)} aria-label="Account">
           <Avatar choice={myAvatar} manifest={manifest} size="sm" />
           <span>
-            {sessionUser?.name || 'Sign in'}
+            {sessionUser ? firstName(sessionUser.name) : 'Sign in'}
             <small>{sessionUser ? `@${sessionUser.handle}` : 'save your wishes'}</small>
           </span>
         </button>
