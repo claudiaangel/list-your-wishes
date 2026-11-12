@@ -922,22 +922,19 @@ export default function App({
             </button>
             <p className="eyebrow">ideas for someone lovely</p>
             <h1>{firstName(friendView.profile.name)}’s Wish List</h1>
-            <p className="intro">
-              Psst — reservations are private. {firstName(friendView.profile.name)} won’t see a
-              thing.
-            </p>
+            {friendView.status === 'ready' && friendView.wishes.length === 0 ? (
+              <p className="intro">No wishes yet.</p>
+            ) : (
+              <p className="intro">
+                Psst — reservations are private. {firstName(friendView.profile.name)} won’t see a
+                thing.
+              </p>
+            )}
             {friendView.status === 'loading' && (
               <p className="directory-message">Opening their list…</p>
             )}
             {friendView.status === 'error' && (
               <p className="directory-message">This list couldn’t be loaded.</p>
-            )}
-            {friendView.status === 'ready' && friendView.wishes.length === 0 && (
-              <div className="empty">
-                <Star />
-                <h2>Nothing here yet</h2>
-                <p>{firstName(friendView.profile.name)} hasn’t added any wishes yet.</p>
-              </div>
             )}
             <WishGrid
               items={friendView.wishes}
@@ -1034,7 +1031,6 @@ export default function App({
             <div>
               <p className="eyebrow">make it look like you</p>
               <h1>Draw your avatar</h1>
-              <p className="intro">Pick a few details for your little ink portrait.</p>
             </div>
             <div className="avatar-studio">
               <div className="preview-paper">
