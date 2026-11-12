@@ -211,7 +211,27 @@ export interface User {
   /**
    * Shapes scattered on the wish list banner.
    */
-  bannerShape?: ('stars' | 'spiral' | 'flower' | 'squiggle' | 'rose' | 'moon' | 'bow' | 'wing' | 'bunny') | null;
+  bannerShape?:
+    ('stars' | 'spiral' | 'flower' | 'squiggle' | 'rose' | 'moon' | 'bow' | 'wing' | 'bunny' | 'none') | null;
+  /**
+   * Background picture for the banner. Empty = plain colour.
+   */
+  bannerImage?:
+    | (
+        | 'flower-haze'
+        | 'magnolia'
+        | 'cream-lace'
+        | 'fawn'
+        | 'pink-roses'
+        | 'pastel-plaid'
+        | 'brown-plaid'
+        | 'little-girl'
+        | 'grey-lace'
+        | 'surf'
+        | 'cows'
+        | 'piano'
+      )
+    | null;
   note?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -480,6 +500,7 @@ export interface UsersSelect<T extends boolean = true> {
   bannerColor?: T;
   bannerTextColor?: T;
   bannerShape?: T;
+  bannerImage?: T;
   note?: T;
   updatedAt?: T;
   createdAt?: T;

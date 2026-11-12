@@ -67,6 +67,8 @@ export type SessionUser = {
   /** '' = automatic */
   bannerTextColor: string
   bannerShape: BannerShape
+  /** '' = plain colour, else a key from BANNER_IMAGES */
+  bannerImage: string
 }
 
 export type Photo = { id: string; url: string; cardUrl: string; cutout: boolean }

@@ -2,7 +2,14 @@ import { HttpError, readJson, route, text } from '@/lib/api'
 import { getAvatarManifest } from '@/lib/avatars'
 import { toSessionUser } from '@/lib/session'
 import { isValidAvatarChoice } from '@/lib/types'
-import { BANNER_SHAPES, HEX_COLOR, validateName, type BannerShape } from '@/lib/validation'
+import {
+  BANNER_IMAGE_KEYS,
+  BANNER_SHAPES,
+  HEX_COLOR,
+  validateName,
+  type BannerImage,
+  type BannerShape,
+} from '@/lib/validation'
 
 export const GET = route(async ({ user }) => Response.json({ user: toSessionUser(user) }))
 
@@ -17,6 +24,7 @@ export const PATCH = route(async ({ request, payload, user }) => {
     bannerColor?: string
     bannerTextColor?: string
     bannerShape?: BannerShape
+    bannerImage?: BannerImage | null
   } = {}
 
   if ('name' in body) {
@@ -49,6 +57,13 @@ export const PATCH = route(async ({ request, payload, user }) => {
       throw new HttpError(400, 'Pick a shape from the list.')
     }
     data.bannerShape = body.bannerShape as BannerShape
+  }
+  if ('bannerImage' in body) {
+    // '' / null = plain colour
+    const image = body.bannerImage
+    if (image === '' || image === null) data.bannerImage = null
+    else if (typeof image === 'string' && BANNER_IMAGE_KEYS.includes(image)) data.bannerImage = image as BannerImage
+    else throw new HttpError(400, 'Pick a picture from the list.')
   }
   if (!Object.keys(data).length) throw new HttpError(400, 'Nothing to update.')
 

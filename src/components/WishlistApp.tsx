@@ -14,6 +14,7 @@ import {
   type SessionUser,
 } from '@/lib/types'
 import {
+  BANNER_IMAGES,
   BANNER_SHAPES,
   CATEGORIES,
   DEFAULT_BANNER_COLOR,
@@ -151,15 +152,19 @@ function isLightColor(hex: string) {
 }
 
 /** textColor '' = automatic: paper-white on dark banners, blue ink on light ones. */
-function bannerStyle(color: string, textColor = '') {
-  const light = isLightColor(color)
-  const style = { background: color } as React.CSSProperties & Record<string, string>
+function bannerStyle(color: string, textColor = '', imageKey = '') {
+  const image = BANNER_IMAGES.find((i) => i.key === imageKey)
+  const light = image ? image.light : isLightColor(color)
+  const style = {
+    background: image ? `${color} url(/banner-backgrounds/${image.key}.webp) center / cover no-repeat` : color,
+  } as React.CSSProperties & Record<string, string>
   if (textColor) style['--banner-ink'] = textColor
   return {
     className: [
-      color.toLowerCase() === DEFAULT_BANNER_COLOR ? '' : 'is-custom',
+      color.toLowerCase() === DEFAULT_BANNER_COLOR && !image ? '' : 'is-custom',
       light ? 'is-light' : '',
       textColor ? 'has-ink' : '',
+      image ? 'has-image' : '',
     ].join(' '),
     style,
     light,
@@ -177,19 +182,24 @@ const TEXT_COLORS: { value: string; label: string }[] = [
   { value: '#5b2a6e', label: 'plum' },
 ]
 
+const HEX = /^#[0-9a-f]{6}$/i
+
 function SwatchRow({
   colors,
   value,
   onChange,
   auto,
+  inactive,
 }: {
   colors: { value: string; label: string }[]
   value: string
   onChange: (value: string) => void
   /** Show an "auto" choice, meaning value '' */
   auto?: boolean
+  /** Nothing shown as selected (e.g. a picture is used instead) */
+  inactive?: boolean
 }) {
-  const v = value.toLowerCase()
+  const v = inactive ? '#inactive' : value.toLowerCase()
   const isPreset = v === '' ? Boolean(auto) : colors.some((c) => c.value === v)
   return (
     <div className="banner-swatches">
@@ -217,10 +227,10 @@ function SwatchRow({
           title={c.label}
         />
       ))}
-      <label className={`banner-swatch is-custom-color ${isPreset ? '' : 'selected'}`} title="any colour">
+      <label className={`banner-swatch is-custom-color ${isPreset || inactive ? '' : 'selected'}`} title="any colour">
         <input
           type="color"
-          value={v || '#fdfbf7'}
+          value={HEX.test(value) ? value.toLowerCase() : '#fdfbf7'}
           onChange={(e) => onChange(e.target.value)}
           aria-label="Pick any colour"
         />
@@ -231,6 +241,7 @@ function SwatchRow({
 
 /** The five little things scattered on the banner: the original stars, or one of the drawn shapes. */
 function BannerDecor({ shape, light }: { shape: BannerShape; light: boolean }) {
+  if (shape === 'none') return null
   if (shape === 'stars') {
     return (
       <div className="hero-stars" aria-hidden="true">
@@ -425,6 +436,7 @@ export default function App({
   const heroLook = bannerStyle(
     sessionUser?.bannerColor ?? DEFAULT_BANNER_COLOR,
     sessionUser?.bannerTextColor ?? '',
+    sessionUser?.bannerImage ?? '',
   )
 
   const [friends, setFriends] = useState<PublicProfile[]>([])
@@ -1973,11 +1985,12 @@ function BannerModal({
   const [color, setColor] = useState(user.bannerColor)
   const [textColor, setTextColor] = useState(user.bannerTextColor)
   const [shape, setShape] = useState<BannerShape>(user.bannerShape)
+  const [image, setImage] = useState(user.bannerImage)
   const [intro, setIntro] = useState(user.intro || DEFAULT_INTRO)
   const [name, setName] = useState(user.name)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const look = bannerStyle(color, textColor)
+  const look = bannerStyle(color, textColor, image)
 
   const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1992,6 +2005,7 @@ function BannerModal({
           bannerColor: color,
           bannerTextColor: textColor,
           bannerShape: shape,
+          bannerImage: image,
           intro: text === DEFAULT_INTRO ? '' : text,
         },
       })
@@ -2021,7 +2035,33 @@ function BannerModal({
 
         <fieldset className="banner-field">
           <legend>Banner colour</legend>
-          <SwatchRow colors={BANNER_COLORS} value={color} onChange={setColor} />
+          <SwatchRow
+            colors={BANNER_COLORS}
+            value={color}
+            inactive={Boolean(image)}
+            onChange={(c) => {
+              setColor(c)
+              setImage('')
+            }}
+          />
+        </fieldset>
+
+        <fieldset className="banner-field">
+          <legend>Or a picture</legend>
+          <div className="banner-image-picker">
+            {BANNER_IMAGES.map((i) => (
+              <button
+                type="button"
+                key={i.key}
+                className={image === i.key ? 'selected' : ''}
+                onClick={() => setImage(image === i.key ? '' : i.key)}
+                aria-pressed={image === i.key}
+                aria-label={i.label}
+                title={i.label}
+                style={{ backgroundImage: `url(/banner-backgrounds/${i.key}-thumb.webp)` }}
+              />
+            ))}
+          </div>
         </fieldset>
 
         <fieldset className="banner-field">
@@ -2042,9 +2082,11 @@ function BannerModal({
                 className={shape === s ? 'selected' : ''}
                 onClick={() => setShape(s)}
                 aria-pressed={shape === s}
-                style={{ background: color }}
+                style={{ background: look.style.background }}
               >
-                {s === 'stars' ? (
+                {s === 'none' ? (
+                  <span className="shape-thumb" />
+                ) : s === 'stars' ? (
                   <span className={`shape-thumb ${look.light ? 'is-ink' : ''}`}>
                     <BannerStar />
                   </span>

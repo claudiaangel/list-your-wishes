@@ -6,6 +6,7 @@ import {
 } from 'payload'
 import { isAdmin, ownedBy } from '../access'
 import {
+  BANNER_IMAGE_KEYS,
   BANNER_SHAPES,
   normalizeHandle,
   validateAvatarShape,
@@ -156,6 +157,12 @@ export const Users: CollectionConfig = {
       options: BANNER_SHAPES.map((value) => ({ label: value, value })),
       defaultValue: 'stars',
       admin: { description: 'Shapes scattered on the wish list banner.' },
+    },
+    {
+      name: 'bannerImage',
+      type: 'select',
+      options: BANNER_IMAGE_KEYS.map((value) => ({ label: value, value })),
+      admin: { description: 'Background picture for the banner. Empty = plain colour.' },
     },
     { name: 'note', type: 'text', maxLength: 80, defaultValue: 'new wishes incoming' },
   ],

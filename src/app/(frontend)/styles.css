@@ -2127,3 +2127,36 @@ footer p {
     scale: 0.36;
   }
 }
+
+/* Banner background pictures */
+.hero.has-image.is-light h1,
+.hero.has-image.is-light .intro,
+.banner-preview.has-image.is-light > * {
+  text-shadow: 0 0 18px rgba(253, 251, 247, 0.9), 0 0 4px rgba(253, 251, 247, 0.7);
+}
+.hero.has-image:not(.is-light) h1,
+.hero.has-image:not(.is-light) .intro,
+.banner-preview.has-image:not(.is-light) > * {
+  text-shadow: 0 0 18px rgba(0, 0, 0, 0.45), 0 0 4px rgba(0, 0, 0, 0.35);
+}
+.banner-image-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+.banner-image-picker button {
+  aspect-ratio: 2 / 1;
+  border: 1px solid rgba(30, 43, 184, 0.25);
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.banner-image-picker button:hover {
+  transform: translateY(-1px);
+}
+.banner-image-picker button.selected {
+  outline: 2px solid #1e2bb8;
+  outline-offset: 2px;
+}

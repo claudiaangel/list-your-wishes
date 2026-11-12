@@ -94,11 +94,30 @@ export const BANNER_SHAPES = [
   'bow',
   'wing',
   'bunny',
+  'none',
 ] as const
 export type BannerShape = (typeof BANNER_SHAPES)[number]
 /** Full-colour photos: always shown as they are, never tinted to the text colour. */
 export const PHOTO_SHAPES: readonly BannerShape[] = ['bunny']
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i
+
+/** Banner background pictures in public/banner-backgrounds. light = dark ink reads best on it. */
+export const BANNER_IMAGES = [
+  { key: 'flower-haze', label: 'flower haze', light: true },
+  { key: 'magnolia', label: 'magnolia', light: true },
+  { key: 'cream-lace', label: 'cream lace', light: true },
+  { key: 'fawn', label: 'fawn', light: false },
+  { key: 'pink-roses', label: 'pink roses', light: true },
+  { key: 'pastel-plaid', label: 'pastel plaid', light: true },
+  { key: 'brown-plaid', label: 'brown plaid', light: false },
+  { key: 'little-girl', label: 'little girl', light: true },
+  { key: 'grey-lace', label: 'grey lace', light: true },
+  { key: 'surf', label: 'surf', light: false },
+  { key: 'cows', label: 'cows', light: true },
+  { key: 'piano', label: 'piano', light: true },
+] as const
+export type BannerImage = (typeof BANNER_IMAGES)[number]['key']
+export const BANNER_IMAGE_KEYS: readonly string[] = BANNER_IMAGES.map((i) => i.key)
 
 export function validateBannerColor(value: unknown): true | string {
   if (value === null || value === undefined || value === '') return true
