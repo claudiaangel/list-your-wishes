@@ -4,6 +4,7 @@ import * as migration_20261111_224004_banner_settings from './20261111_224004_ba
 import * as migration_20261111_225024_banner_text_color from './20261111_225024_banner_text_color';
 import * as migration_20261111_232428_banner_shape_bunny from './20261111_232428_banner_shape_bunny';
 import * as migration_20261112_075709_banner_image from './20261112_075709_banner_image';
+import * as migration_20261113_030534_brands from './20261113_030534_brands';
 
 export const migrations = [
   {
@@ -34,6 +35,11 @@ export const migrations = [
   {
     up: migration_20261112_075709_banner_image.up,
     down: migration_20261112_075709_banner_image.down,
-    name: '20261112_075709_banner_image'
+    name: '20261112_075709_banner_image',
+  },
+  {
+    up: migration_20261113_030534_brands.up,
+    down: migration_20261113_030534_brands.down,
+    name: '20261113_030534_brands'
   },
 ];

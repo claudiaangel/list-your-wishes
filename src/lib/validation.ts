@@ -123,3 +123,54 @@ export function validateBannerColor(value: unknown): true | string {
   if (value === null || value === undefined || value === '') return true
   return typeof value === 'string' && HEX_COLOR.test(value) ? true : 'Pick a colour.'
 }
+
+// "Brands I like": up to 30 shops, each a name and a link to its website.
+export type Brand = { name: string; url: string }
+export const MAX_BRANDS = 30
+
+/** "glossier.com" → "https://glossier.com/". Null unless it is a plain public http(s) website address. */
+export function normalizeBrandUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  let raw = value.trim()
+  if (!raw || raw.length > 200 || /\s/.test(raw)) return null
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) raw = `https://${raw}`
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    if (url.username || url.password) return null
+    // A real domain name: "shop.example", not "localhost" or an IP address
+    if (!/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(url.hostname)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+/** Cleans a submitted brands list. Returns an error message when something is off. */
+export function parseBrands(value: unknown): Brand[] | string {
+  if (!Array.isArray(value)) return 'Brands must be a list.'
+  if (value.length > MAX_BRANDS) return `You can add up to ${MAX_BRANDS} brands.`
+  const brands: Brand[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return 'Each brand needs a name and a website.'
+    const { name, url } = item as Record<string, unknown>
+    const cleanName = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim() : ''
+    if (!cleanName || cleanName.length > 40) return 'Give each brand a name (40 characters max).'
+    const cleanUrl = normalizeBrandUrl(url)
+    if (!cleanUrl) return `“${cleanName}” needs a website like glossier.com.`
+    brands.push({ name: cleanName, url: cleanUrl })
+  }
+  return brands
+}
+
+export function validateBrands(value: unknown): true | string {
+  if (value === null || value === undefined) return true
+  const result = parseBrands(value)
+  return typeof result === 'string' ? result : true
+}
+
+/** Brands as stored (already validated); anything malformed is dropped. */
+export function storedBrands(value: unknown): Brand[] {
+  const result = Array.isArray(value) ? parseBrands(value) : []
+  return typeof result === 'string' ? [] : result
+}

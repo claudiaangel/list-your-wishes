@@ -3,7 +3,7 @@ import { HttpError, requireId, route } from '@/lib/api'
 import { getFriendIds } from '@/lib/friends'
 import { toFriendWish, toPublicProfile } from '@/lib/serialize'
 import type { FriendBanner } from '@/lib/types'
-import { DEFAULT_BANNER_COLOR, type BannerShape } from '@/lib/validation'
+import { DEFAULT_BANNER_COLOR, storedBrands, type BannerShape } from '@/lib/validation'
 
 type P = { userId: string }
 
@@ -44,7 +44,7 @@ export const GET = route<P>(async ({ params, payload, user }) => {
       pagination: false,
       overrideAccess: true,
     }),
-    // Friendship was checked above; only the banner fields below are sent on.
+    // Friendship was checked above; only the banner fields and brands below are sent on.
     payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true }),
   ])
   const banner: FriendBanner = {
@@ -72,6 +72,7 @@ export const GET = route<P>(async ({ params, payload, user }) => {
   return Response.json({
     profile: toPublicProfile(profile, true),
     banner,
+    brands: storedBrands(owner.brands),
     wishes: wishes.docs.map((w) => {
       const reserver = reserverByWish.get(String(w.id))
       return toFriendWish(w, Boolean(reserver), reserver === me)

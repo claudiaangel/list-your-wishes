@@ -232,6 +232,18 @@ export interface User {
         | 'piano'
       )
     | null;
+  /**
+   * Brands I like: [{"name": "Glossier", "url": "https://glossier.com/"}]
+   */
+  brands?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   note?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -501,6 +513,7 @@ export interface UsersSelect<T extends boolean = true> {
   bannerTextColor?: T;
   bannerShape?: T;
   bannerImage?: T;
+  brands?: T;
   note?: T;
   updatedAt?: T;
   createdAt?: T;

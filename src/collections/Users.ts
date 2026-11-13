@@ -12,6 +12,7 @@ import {
   validateAvatarShape,
   validateBannerColor,
   validateBirthday,
+  validateBrands,
   validateHandle,
   validateName,
 } from '../lib/validation'
@@ -163,6 +164,12 @@ export const Users: CollectionConfig = {
       type: 'select',
       options: BANNER_IMAGE_KEYS.map((value) => ({ label: value, value })),
       admin: { description: 'Background picture for the banner. Empty = plain colour.' },
+    },
+    {
+      name: 'brands',
+      type: 'json',
+      validate: validateBrands,
+      admin: { description: 'Brands I like: [{"name": "Glossier", "url": "https://glossier.com/"}]' },
     },
     { name: 'note', type: 'text', maxLength: 80, defaultValue: 'new wishes incoming' },
   ],

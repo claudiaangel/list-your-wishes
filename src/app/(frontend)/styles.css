@@ -2166,3 +2166,112 @@ footer p {
   margin-top: 28px;
   margin-bottom: 36px;
 }
+
+/* Brands I like */
+.brands {
+  max-width: 1240px;
+  margin: 0 auto 44px;
+  padding: 0 30px;
+  text-align: center;
+  color: #1e2bb8;
+}
+.brands-title {
+  font: 25px 'Petit Formal Script';
+  margin-bottom: 14px;
+}
+.brands-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.brands-list li {
+  position: relative;
+}
+.brands-list a,
+.brand-add {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  padding: 8px 19px;
+  font: italic 16px 'Newsreader';
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.brands-list a:hover,
+.brands-list a:focus-visible {
+  background: #1e2bb8;
+  color: #fdfbf7;
+}
+.brand-add {
+  border-style: dashed;
+  background: none;
+  opacity: 0.75;
+}
+.brand-add:hover {
+  opacity: 1;
+}
+.brand-remove {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: #fdfbf7;
+  color: #1e2bb8;
+  font-size: 13px;
+  line-height: 17px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.brands-list li:hover .brand-remove,
+.brand-remove:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .brand-remove {
+    opacity: 0.7;
+  }
+}
+.brand-form {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.brand-form input {
+  min-width: 0;
+  width: 230px;
+  max-width: 100%;
+  padding: 9px 16px;
+  border: 1px solid color-mix(in srgb, #1e2bb8 35%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: #1e2bb8;
+  font: 15px 'Newsreader';
+}
+.brand-form .ink-button {
+  padding: 10px 24px;
+}
+.brand-cancel {
+  font: italic 15px 'Newsreader';
+  border-bottom: 1px solid currentColor;
+  cursor: pointer;
+}
+.brands .form-error {
+  margin-top: 10px;
+}
+.friend-list .brands {
+  margin-top: 46px;
+  margin-bottom: 0;
+}

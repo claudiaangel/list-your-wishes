@@ -6,7 +6,9 @@ import {
   BANNER_IMAGE_KEYS,
   BANNER_SHAPES,
   HEX_COLOR,
+  parseBrands,
   validateName,
+  type Brand,
   type BannerImage,
   type BannerShape,
 } from '@/lib/validation'
@@ -25,6 +27,7 @@ export const PATCH = route(async ({ request, payload, user }) => {
     bannerTextColor?: string
     bannerShape?: BannerShape
     bannerImage?: BannerImage | null
+    brands?: Brand[]
   } = {}
 
   if ('name' in body) {
@@ -64,6 +67,11 @@ export const PATCH = route(async ({ request, payload, user }) => {
     if (image === '' || image === null) data.bannerImage = null
     else if (typeof image === 'string' && BANNER_IMAGE_KEYS.includes(image)) data.bannerImage = image as BannerImage
     else throw new HttpError(400, 'Pick a picture from the list.')
+  }
+  if ('brands' in body) {
+    const brands = parseBrands(body.brands)
+    if (typeof brands === 'string') throw new HttpError(400, brands)
+    data.brands = brands
   }
   if (!Object.keys(data).length) throw new HttpError(400, 'Nothing to update.')
 

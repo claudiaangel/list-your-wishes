@@ -15,6 +15,9 @@ import {
   type SessionUser,
 } from '@/lib/types'
 import {
+  MAX_BRANDS,
+  normalizeBrandUrl,
+  type Brand,
   BANNER_IMAGES,
   BANNER_SHAPES,
   CATEGORIES,
@@ -268,6 +271,130 @@ function BannerDecor({ shape, light }: { shape: BannerShape; light: boolean }) {
   )
 }
 
+/** "glossier.com" → "Glossier" */
+function brandNameFromUrl(url: string) {
+  const host = new URL(url).hostname.replace(/^(www\d?|shop|store|m)\./i, '')
+  const core = host.split('.')[0] ?? host
+  return core.charAt(0).toUpperCase() + core.slice(1)
+}
+
+/** Pills linking to brands' websites. Editable when onSave is given. */
+function BrandsSection({
+  title,
+  brands,
+  onSave,
+  onAuthError,
+}: {
+  title: string
+  brands: Brand[]
+  onSave?: (brands: Brand[]) => Promise<void>
+  onAuthError?: () => void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [site, setSite] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const save = async (next: Brand[]) => {
+    if (!onSave) return false
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(next)
+      return true
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) onAuthError?.()
+      else setError(message(e))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const add = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const url = normalizeBrandUrl(site)
+    if (!url) return setError('Add the brand’s website, like glossier.com.')
+    const brandName = name.trim() || brandNameFromUrl(url)
+    if (await save([...brands, { name: brandName.slice(0, 40), url }])) {
+      setName('')
+      setSite('')
+      setAdding(false)
+    }
+  }
+
+  return (
+    <section className="brands">
+      <p className="brands-title">{title}</p>
+      <ul className="brands-list">
+        {brands.map((b, i) => (
+          <li key={`${b.url}-${i}`}>
+            <a href={b.url} target="_blank" rel="noopener noreferrer nofollow">
+              {b.name}
+              <span aria-hidden="true"> ↗</span>
+            </a>
+            {onSave && (
+              <button
+                type="button"
+                className="brand-remove"
+                onClick={() => save(brands.filter((_, j) => j !== i))}
+                disabled={saving}
+                aria-label={`Remove ${b.name}`}
+                title="Remove"
+              >
+                ×
+              </button>
+            )}
+          </li>
+        ))}
+        {onSave && !adding && brands.length < MAX_BRANDS && (
+          <li>
+            <button type="button" className="brand-add" onClick={() => setAdding(true)}>
+              + add a brand
+            </button>
+          </li>
+        )}
+      </ul>
+      {adding && (
+        <form className="brand-form" onSubmit={add}>
+          <input
+            value={site}
+            onChange={(e) => setSite(e.target.value)}
+            placeholder="Website, e.g. glossier.com"
+            maxLength={200}
+            inputMode="url"
+            aria-label="Brand website"
+            autoFocus
+            required
+          />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name (optional)"
+            maxLength={40}
+            aria-label="Brand name"
+          />
+          <button className="ink-button" disabled={saving}>
+            {saving ? 'Adding…' : 'Add'}
+          </button>
+          <button
+            type="button"
+            className="brand-cancel"
+            onClick={() => {
+              setAdding(false)
+              setError('')
+            }}
+          >
+            cancel
+          </button>
+        </form>
+      )}
+      {error && <p className="form-error">{error}</p>}
+    </section>
+  )
+}
+
 /** A friend's banner, as they set it up (read-only). */
 function FriendHero({ name, banner }: { name: string; banner: FriendBanner }) {
   const look = bannerStyle(banner.color, banner.textColor, banner.image)
@@ -462,6 +589,7 @@ export default function App({
     profile: PublicProfile
     wishes: FriendWish[]
     banner?: FriendBanner
+    brands?: Brand[]
     status: Status
   } | null>(null)
   const [friendSelected, setFriendSelected] = useState<string | null>(null)
@@ -648,7 +776,12 @@ export default function App({
     setFriendView({ profile, wishes: [], status: 'loading' })
     window.scrollTo({ top: 0, behavior: 'smooth' })
     try {
-      const result = await api<{ profile: PublicProfile; wishes: FriendWish[]; banner: FriendBanner }>(
+      const result = await api<{
+        profile: PublicProfile
+        wishes: FriendWish[]
+        banner: FriendBanner
+        brands: Brand[]
+      }>(
         `/api/app/friends/${profile.userId}/wishes`,
       )
       setFriendView({ ...result, status: 'ready' })
@@ -792,6 +925,18 @@ export default function App({
               signInPrompt('Start your wish list.')
             ) : (
               <>
+                <BrandsSection
+                  title="Brands I like"
+                  brands={sessionUser.brands}
+                  onSave={async (brands) => {
+                    const { user } = await api<{ user: SessionUser }>('/api/app/me', {
+                      method: 'PATCH',
+                      json: { brands },
+                    })
+                    setSessionUser(user)
+                  }}
+                  onAuthError={() => handleError(new ApiError(401, 'Please sign in again.'))}
+                />
                 <section className="controls">
                   <div className="tabs" role="tablist">
                     {(['All', ...CATEGORIES] as const).map((c) => (
@@ -967,6 +1112,12 @@ export default function App({
             )}
             {friendView.status === 'error' && (
               <p className="directory-message">This list couldn’t be loaded.</p>
+            )}
+            {friendView.brands && friendView.brands.length > 0 && (
+              <BrandsSection
+                title={`Brands ${firstName(friendView.profile.name)} likes`}
+                brands={friendView.brands}
+              />
             )}
             <WishGrid
               items={friendView.wishes}
