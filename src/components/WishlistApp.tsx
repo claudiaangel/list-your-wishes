@@ -576,6 +576,7 @@ export default function App({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [formWish, setFormWish] = useState<MyWish | 'new' | null>(null)
   const [bannerOpen, setBannerOpen] = useState(false)
+  const [jarPicking, setJarPicking] = useState(false)
   const heroLook = bannerStyle(
     sessionUser?.bannerColor ?? DEFAULT_BANNER_COLOR,
     sessionUser?.bannerTextColor ?? '',
@@ -688,6 +689,8 @@ export default function App({
   )
   const selected = wishes.find((w) => w.id === selectedId) ?? null
   const jarWishes = wishes.filter((w) => w.savingsGoal !== null && !w.bought)
+  // Wishes that could still go in the jar
+  const jarChoices = wishes.filter((w) => w.savingsGoal === null && !w.bought)
   const savedTotal = jarWishes.reduce((sum, w) => sum + w.saved, 0)
   const goalTotal = jarWishes.reduce((sum, w) => sum + (w.savingsGoal ?? 0), 0)
   const jarRatio = goalTotal > 0 ? Math.min(1, savedTotal / goalTotal) : 0
@@ -1144,7 +1147,6 @@ export default function App({
           <section className="page-section savings-page">
             <div className="savings-heading">
               <div>
-                <p className="eyebrow">a little at a time</p>
                 <h1>Savings Jar</h1>
                 <p className="intro">Tiny drops become lovely things. Keep going.</p>
               </div>
@@ -1183,9 +1185,6 @@ export default function App({
                       d="M83 28h164M78 39h174v52H78zM65 98q-20 26-25 62v180q2 55 58 62h134q56-7 58-62V160q-5-36-25-62M82 112c45 8 124 8 168 0"
                     />
                     <path className="jar-shine" d="M73 155v132" />
-                    <text x="165" y="205" textAnchor="middle">
-                      for lovely things
-                    </text>
                     <Star className="jar-star" />
                   </svg>
                   <div className="jar-total">
@@ -1195,10 +1194,8 @@ export default function App({
                 </div>
                 <div className="saving-list">
                   <p className="hand-label">currently saving for...</p>
-                  {wishesStatus === 'ready' && jarWishes.length === 0 && (
-                    <p className="directory-message">
-                      Nothing in the jar yet. Open a wish and choose “Add to savings jar”.
-                    </p>
+                  {wishesStatus === 'ready' && jarWishes.length === 0 && !jarPicking && (
+                    <p className="directory-message">Nothing in the jar yet.</p>
                   )}
                   {jarWishes.map((w) => (
                     <SavingRow
@@ -1209,9 +1206,50 @@ export default function App({
                       onUpdate={(data) => updateWish(w.id, data)}
                     />
                   ))}
-                  <button className="outline-button" onClick={() => go('wishlist')}>
-                    Choose another wish
-                  </button>
+                  {jarPicking ? (
+                    <div className="jar-picker">
+                      <p className="jar-picker-title">pick a wish to save for</p>
+                      {jarChoices.length === 0 ? (
+                        <p className="directory-message">
+                          Every wish is already in the jar.{' '}
+                          <button className="text-button" onClick={() => setFormWish('new')}>
+                            Add a new wish
+                          </button>
+                        </p>
+                      ) : (
+                        <ul>
+                          {jarChoices.map((w) => (
+                            <li key={w.id}>
+                              <button
+                                className="jar-choice"
+                                onClick={async () => {
+                                  if (await updateWish(w.id, { savingsGoal: w.price })) {
+                                    setJarPicking(false)
+                                  }
+                                }}
+                              >
+                                {w.photo ? (
+                                  <Image src={w.photo.cardUrl} alt="" width={56} height={56} unoptimized />
+                                ) : (
+                                  <span className="jar-choice-blank" />
+                                )}
+                                <span className="jar-choice-name">{w.name}</span>
+                                <span className="jar-choice-price">${formatMoney(w.price)}</span>
+                                <span className="jar-choice-add">+ add to jar</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <button className="text-button" onClick={() => setJarPicking(false)}>
+                        close
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="outline-button" onClick={() => setJarPicking(true)}>
+                      {jarWishes.length ? 'Choose another wish' : 'Choose a wish'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

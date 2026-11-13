@@ -2284,3 +2284,73 @@ footer p {
   margin-bottom: 18px;
   opacity: 0.8;
 }
+
+/* Savings jar: pick a wish without leaving the page */
+.jar-picker {
+  margin-top: 26px;
+  padding: 20px 22px;
+  border: 1px solid color-mix(in srgb, #1e2bb8 25%, transparent);
+  border-radius: 18px;
+}
+.jar-picker-title {
+  font: 22px 'Petit Formal Script';
+  margin-bottom: 12px;
+}
+.jar-picker ul {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.jar-choice {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 6px;
+  border-bottom: 1px solid color-mix(in srgb, #1e2bb8 12%, transparent);
+  text-align: left;
+  color: #1e2bb8;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.jar-choice:hover,
+.jar-choice:focus-visible {
+  background: color-mix(in srgb, #1e2bb8 6%, transparent);
+}
+.jar-choice img,
+.jar-choice-blank {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.jar-choice-name {
+  font: 18px/1.15 'Newsreader';
+}
+.jar-choice-price {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.jar-choice-add {
+  font: italic 14px 'Newsreader';
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .jar-choice {
+    grid-template-columns: 48px 1fr auto;
+  }
+  .jar-choice img,
+  .jar-choice-blank {
+    width: 48px;
+    height: 48px;
+  }
+  .jar-choice-price {
+    display: none;
+  }
+}
