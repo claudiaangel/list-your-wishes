@@ -2275,3 +2275,12 @@ footer p {
   margin-top: 46px;
   margin-bottom: 0;
 }
+.brands.is-tab {
+  padding-top: 10px;
+  margin-bottom: 120px;
+}
+.brands-empty {
+  font: italic 17px 'Newsreader';
+  margin-bottom: 18px;
+  opacity: 0.8;
+}

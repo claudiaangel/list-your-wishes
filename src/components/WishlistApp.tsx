@@ -285,7 +285,7 @@ function BrandsSection({
   onSave,
   onAuthError,
 }: {
-  title: string
+  title?: string
   brands: Brand[]
   onSave?: (brands: Brand[]) => Promise<void>
   onAuthError?: () => void
@@ -325,8 +325,11 @@ function BrandsSection({
   }
 
   return (
-    <section className="brands">
-      <p className="brands-title">{title}</p>
+    <section className={`brands ${title ? '' : 'is-tab'}`}>
+      {title && <p className="brands-title">{title}</p>}
+      {!title && brands.length === 0 && !adding && (
+        <p className="brands-empty">The shops you love, one tap away.</p>
+      )}
       <ul className="brands-list">
         {brands.map((b, i) => (
           <li key={`${b.url}-${i}`}>
@@ -568,7 +571,7 @@ export default function App({
 
   const [wishes, setWishes] = useState<MyWish[]>([])
   const [wishesStatus, setWishesStatus] = useState<Status>('idle')
-  const [category, setCategory] = useState<'All' | Category>('All')
+  const [category, setCategory] = useState<'All' | Category | 'Brands'>('All')
   const [showBought, setShowBought] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [formWish, setFormWish] = useState<MyWish | 'new' | null>(null)
@@ -925,21 +928,9 @@ export default function App({
               signInPrompt('Start your wish list.')
             ) : (
               <>
-                <BrandsSection
-                  title="Brands I like"
-                  brands={sessionUser.brands}
-                  onSave={async (brands) => {
-                    const { user } = await api<{ user: SessionUser }>('/api/app/me', {
-                      method: 'PATCH',
-                      json: { brands },
-                    })
-                    setSessionUser(user)
-                  }}
-                  onAuthError={() => handleError(new ApiError(401, 'Please sign in again.'))}
-                />
                 <section className="controls">
                   <div className="tabs" role="tablist">
-                    {(['All', ...CATEGORIES] as const).map((c) => (
+                    {(['All', ...CATEGORIES, 'Brands'] as const).map((c) => (
                       <button
                         key={c}
                         className={category === c ? 'selected' : ''}
@@ -949,16 +940,32 @@ export default function App({
                       </button>
                     ))}
                   </div>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={showBought}
-                      onChange={(e) => setShowBought(e.target.checked)}
-                    />
-                    <span />
-                    <em>show bought</em>
-                  </label>
+                  {category !== 'Brands' && (
+                    <label className="toggle">
+                      <input
+                        type="checkbox"
+                        checked={showBought}
+                        onChange={(e) => setShowBought(e.target.checked)}
+                      />
+                      <span />
+                      <em>show bought</em>
+                    </label>
+                  )}
                 </section>
+                {category === 'Brands' ? (
+                  <BrandsSection
+                    brands={sessionUser.brands}
+                    onSave={async (brands) => {
+                      const { user } = await api<{ user: SessionUser }>('/api/app/me', {
+                        method: 'PATCH',
+                        json: { brands },
+                      })
+                      setSessionUser(user)
+                    }}
+                    onAuthError={() => handleError(new ApiError(401, 'Please sign in again.'))}
+                  />
+                ) : (
+                <>
                 <WishGrid items={visible} onSelect={(w) => setSelectedId(w.id)} />
                 {wishesStatus === 'loading' && (
                   <p className="directory-message">Opening your list…</p>
@@ -972,6 +979,8 @@ export default function App({
                     <h2>Nothing here yet</h2>
                     <p>That means there’s room for one more lovely thing.</p>
                   </div>
+                )}
+                </>
                 )}
               </>
             )}
